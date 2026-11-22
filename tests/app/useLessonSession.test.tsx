@@ -341,15 +341,13 @@ describe('useLessonSession: last edit wins (Review Focus 4)', () => {
   });
 
   it('reports playing once play resolves, and only passes evalInfo for the current code', async () => {
-    const engine = fakeEngine();
-    const info: EvalInfo = { pattern: {} as EvalInfo['pattern'], miniLocations: [[0, 2]] };
-    engine.play.mockImplementationOnce(() => Promise.resolve(info));
-    const { hook } = setup({ engine });
+    const { engine, hook } = setup();
     act(() => {
       hook.result.current.play();
     });
     await flush();
-    expect(hook.result.current.evalInfo).toBe(info);
+    expect(hook.result.current.playing).toBe(true);
+    expect(hook.result.current.evalInfo).toBe(evaluated);
 
     // A newer program makes the old evaluation stale before its own result arrives.
     const pending = deferred<EvalInfo | null>();
