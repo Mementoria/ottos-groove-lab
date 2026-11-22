@@ -1,8 +1,10 @@
 import type { BlockType } from '../../blocks/blockTypes';
 import type { Lesson } from '../types';
+import { module0 } from './module0';
+import { module1 } from './module1';
 
-/** The course, in order. Content tasks fill this in. */
-export const course: Lesson[] = [];
+/** The course, in order. */
+export const course: Lesson[] = [...module0, ...module1];
 
 /** Cumulative toolbox: the union of `unlocks` for lessons 0 through `lessonIndex`. */
 export function unlockedFor(lessonIndex: number, lessons: readonly Lesson[] = course): BlockType[] {
