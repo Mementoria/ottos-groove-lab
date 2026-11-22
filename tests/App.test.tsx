@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { App } from '../src/App';
 import { loadState, saveState } from '../src/app/storage';
 import type { AudioEngine } from '../src/audio/engine';
+import { course } from '../src/lessons/content';
 import type { Lesson, Step } from '../src/lessons/types';
 import { layer, program, sound } from '../src/program/build';
 
@@ -86,6 +87,44 @@ describe('App', () => {
     expect(within(module0).getByRole('button', { name: /Lesson b/ })).toBeEnabled();
     const studio = screen.getByRole('region', { name: 'Song Studio' });
     expect(within(studio).getByRole('button', { name: /Lesson c/ })).toBeDisabled();
+  });
+
+  it('shows the eight Song Studio styles, seven of them coming soon', async () => {
+    const user = userEvent.setup();
+    render(<App engine={fakeEngine()} />);
+    await wake(user);
+
+    const studio = await screen.findByRole('region', { name: 'Song Studio' });
+    const cards = within(studio).getAllByRole('button');
+    expect(cards.map((c) => c.querySelector('.map-card-title')?.textContent)).toEqual([
+      'Acid',
+      'House',
+      'Techno',
+      'Lo-fi hip hop',
+      'Ambient',
+      'Classical',
+      'Jazz',
+      'Pop',
+    ]);
+    const soon = cards.filter((c) => c.textContent.includes('Coming soon'));
+    expect(soon).toHaveLength(7);
+    for (const card of cards) expect(card).toBeDisabled();
+    expect(studio.querySelectorAll('.arm-glyph-held')).toHaveLength(8);
+  });
+
+  it('unlocks the Acid song once the Module 2 capstone is done', async () => {
+    const user = userEvent.setup();
+    saveState({
+      version: 1,
+      lessonProgress: { 'm2-acidline': { stepIndex: 0, completed: true } },
+      workspaces: {},
+    });
+    render(<App engine={fakeEngine()} lessons={course} />);
+    await wake(user);
+
+    const studio = await screen.findByRole('region', { name: 'Song Studio' });
+    expect(within(studio).getByRole('button', { name: /Acid/ })).toBeEnabled();
+    expect(within(studio).getByRole('button', { name: /House/ })).toBeDisabled();
   });
 
   it('resets progress only after confirming in the dialog', async () => {

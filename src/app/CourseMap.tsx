@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
+import { SONG_STYLES } from '../lessons/content/styles';
 import type { Lesson } from '../lessons/types';
+import { ArmGlyph } from '../otto/ArmGlyph';
 import { loadState, resetState, type SavedState } from './storage';
+
+const STUDIO: Lesson['module'] = 'acid';
 
 const MODULES: readonly { module: Lesson['module']; title: string }[] = [
   { module: 0, title: 'Module 0 · Hello, Otto' },
   { module: 1, title: 'Module 1 · Rhythm' },
   { module: 2, title: 'Module 2 · Sound design' },
-  { module: 'acid', title: 'Song Studio' },
+  { module: STUDIO, title: 'Song Studio' },
 ];
 
 export interface CourseMapProps {
@@ -41,6 +45,48 @@ export function CourseMap({ lessons, onOpen }: CourseMapProps) {
 
   const indexed = lessons.map((lesson, index) => ({ lesson, index }));
 
+  const lessonCard = (lesson: Lesson, index: number, arm?: number) => {
+    const unlocked = index === 0 || isDone(saved, lessons[index - 1]);
+    return (
+      <li key={lesson.id}>
+        <button
+          type="button"
+          className="map-card"
+          disabled={!unlocked}
+          onClick={() => {
+            onOpen(index);
+          }}
+        >
+          {arm !== undefined && <ArmGlyph arm={arm} />}
+          <span className="map-card-title">{lesson.title}</span>
+          <span className="map-card-status">{statusText(saved, lesson, unlocked)}</span>
+        </button>
+      </li>
+    );
+  };
+
+  /** One card per style, held by its arm: its lesson if it has one, else "coming soon". */
+  const studioCards = (entries: { lesson: Lesson; index: number }[]) => {
+    const styled = new Set(SONG_STYLES.flatMap((style) => style.lessonId ?? []));
+    const loose = entries.filter((e) => !styled.has(e.lesson.id));
+    return [
+      ...SONG_STYLES.map((style) => {
+        const entry = entries.find((e) => e.lesson.id === style.lessonId);
+        if (entry) return lessonCard(entry.lesson, entry.index, style.arm);
+        return (
+          <li key={style.id}>
+            <button type="button" className="map-card map-card-soon" disabled>
+              <ArmGlyph arm={style.arm} />
+              <span className="map-card-title">{style.name}</span>
+              <span className="map-card-status">Coming soon</span>
+            </button>
+          </li>
+        );
+      }),
+      ...loose.map(({ lesson, index }) => lessonCard(lesson, index)),
+    ];
+  };
+
   return (
     <main className="map">
       <header className="map-header">
@@ -62,7 +108,8 @@ export function CourseMap({ lessons, onOpen }: CourseMapProps) {
       ) : (
         MODULES.map(({ module, title }) => {
           const entries = indexed.filter((e) => e.lesson.module === module);
-          if (entries.length === 0) return null;
+          const studio = module === STUDIO;
+          if (entries.length === 0 && !studio) return null;
           const headingId = `map-module-${String(module)}`;
           return (
             <section key={headingId} className="map-module" aria-labelledby={headingId}>
@@ -70,26 +117,9 @@ export function CourseMap({ lessons, onOpen }: CourseMapProps) {
                 {title}
               </h2>
               <ul className="map-cards">
-                {entries.map(({ lesson, index }) => {
-                  const unlocked = index === 0 || isDone(saved, lessons[index - 1]);
-                  return (
-                    <li key={lesson.id}>
-                      <button
-                        type="button"
-                        className="map-card"
-                        disabled={!unlocked}
-                        onClick={() => {
-                          onOpen(index);
-                        }}
-                      >
-                        <span className="map-card-title">{lesson.title}</span>
-                        <span className="map-card-status">
-                          {statusText(saved, lesson, unlocked)}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
+                {studio
+                  ? studioCards(entries)
+                  : entries.map(({ lesson, index }) => lessonCard(lesson, index))}
               </ul>
             </section>
           );
