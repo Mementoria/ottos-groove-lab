@@ -36,3 +36,36 @@ declare module '@strudel/transpiler' {
   import type { Pattern } from '@strudel/core';
   export function evaluate(code: string): Promise<{ pattern: Pattern; meta: unknown }>;
 }
+
+declare module '@strudel/soundfonts' {
+  export function registerSoundfonts(): Promise<void>;
+}
+
+declare module '@strudel/web' {
+  import type { Pattern } from '@strudel/core';
+
+  export interface EvalMeta {
+    miniLocations?: [number, number][];
+  }
+
+  export interface StrudelRepl {
+    evaluate(code: string, autostart?: boolean): Promise<Pattern | undefined>;
+    stop(): void;
+    scheduler: { now(): number };
+  }
+
+  export interface StrudelOptions {
+    prebake?: () => Promise<void>;
+    afterEval?: (info: { code: string; pattern: Pattern; meta: EvalMeta | undefined }) => void;
+  }
+
+  export interface SuperdoughAudioController {
+    output: { destinationGain: AudioNode };
+  }
+
+  export function initStrudel(options?: StrudelOptions): Promise<StrudelRepl>;
+  export function initAudio(): Promise<void>;
+  export function samples(source: string): Promise<void>;
+  export function getAudioContext(): AudioContext;
+  export function getSuperdoughAudioController(): SuperdoughAudioController;
+}
