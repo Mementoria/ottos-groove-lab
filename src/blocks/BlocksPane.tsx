@@ -17,6 +17,12 @@ import './blocksPane.css';
 export type BlocksPaneInitial =
   { kind: 'program'; program: Program } | { kind: 'saved'; state: object } | null;
 
+export interface LoadRequest {
+  program: Program;
+  nonce: number;
+  keepUndo: boolean;
+}
+
 export interface BlocksPaneChange {
   program: Program;
   warnings: ConvertWarning[];
@@ -28,8 +34,11 @@ export interface BlocksPaneProps {
   /** Read once, when the workspace is created. */
   initial: BlocksPaneInitial;
   onChange(result: BlocksPaneChange): void;
-  /** "Show me" and lesson start: each new nonce replaces the workspace with the program. */
-  loadRequest: { program: Program; nonce: number } | null;
+  /**
+   * "Show me" and step start: each new nonce replaces the workspace with the program. With
+   * `keepUndo` ("Show me"), undo steps back to what was there before.
+   */
+  loadRequest: LoadRequest | null;
   /** Warnings found outside conversion (a pattern typo from playback), shown alongside its own. */
   extraWarnings: readonly ConvertWarning[];
 }
@@ -46,12 +55,20 @@ function recoverFromFailedLoad(ws: Blockly.Workspace): void {
 /**
  * Replaces the workspace contents. Saved state that won't load (e.g. it names a block type that
  * no longer exists) leaves an empty workspace and a console warning instead of an error.
+ * Undo is cleared, unless `keepUndo` makes the load itself one undoable step.
  */
-export function loadWorkspace(ws: Blockly.Workspace, initial: BlocksPaneInitial): void {
+export function loadWorkspace(
+  ws: Blockly.Workspace,
+  initial: BlocksPaneInitial,
+  { keepUndo = false }: { keepUndo?: boolean } = {},
+): void {
   if (initial === null) {
     ws.clear();
   } else if (initial.kind === 'program') {
-    Blockly.serialization.workspaces.load(programToWorkspaceState(initial.program), ws);
+    const state = programToWorkspaceState(initial.program);
+    // The load is one event group, so with keepUndo a single undo restores what was there.
+    Blockly.serialization.workspaces.load(state, ws, { recordUndo: keepUndo });
+    if (keepUndo) return;
   } else {
     try {
       Blockly.serialization.workspaces.load(initial.state, ws);
@@ -278,7 +295,11 @@ export function BlocksPane(props: BlocksPaneProps) {
     const ws = wsRef.current;
     if (!ws || !loadRequest || loadRequest.nonce === appliedNonceRef.current) return;
     appliedNonceRef.current = loadRequest.nonce;
-    loadWorkspace(ws, { kind: 'program', program: loadRequest.program });
+    loadWorkspace(
+      ws,
+      { kind: 'program', program: loadRequest.program },
+      { keepUndo: loadRequest.keepUndo },
+    );
   }, [loadRequest]);
 
   return <div ref={hostRef} className="ogl-blockspane" style={{ width: '100%', height: '100%' }} />;

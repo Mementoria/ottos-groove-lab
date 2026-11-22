@@ -519,6 +519,8 @@ describe('useLessonSession: steps, hints and success', () => {
     });
     expect(hook.result.current.currentHintText).toBe(SHOW_ME_LINE);
     expect(hook.result.current.loadRequest?.program).toBe(SOLUTION);
+    // Undo can take the learner back to their own attempt.
+    expect(hook.result.current.loadRequest?.keepUndo).toBe(true);
 
     // Once the blocks pane reports the loaded program, the request is cleared.
     act(() => {
@@ -569,6 +571,7 @@ describe('useLessonSession: steps, hints and success', () => {
     expect(hook.result.current.cheering).toBe(true);
     expect(hook.result.current.speech.lines).toEqual(['Two arms!', 'Play with it.']);
     expect(hook.result.current.loadRequest?.program).toBe(JAM_START);
+    expect(hook.result.current.loadRequest?.keepUndo).toBe(false);
     expect(loadState().lessonProgress['fixture']).toEqual({ stepIndex: 1, completed: false });
     expect(loadState().workspaces['fixture']).toEqual({ mine: 1 });
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { AudioEngine, EvalInfo } from '../audio/engine';
-import type { BlocksPaneChange, BlocksPaneInitial } from '../blocks/BlocksPane';
+import type { BlocksPaneChange, BlocksPaneInitial, LoadRequest } from '../blocks/BlocksPane';
 import type { BlockType } from '../blocks/blockTypes';
 import { nodeIdsOfTypes } from '../blocks/convert';
 import { buildContext, runCheck } from '../checkers/checks';
@@ -60,7 +60,7 @@ export interface LessonSessionState {
   evalError: EvalErrorInfo | null;
   playing: boolean;
   targetPlaying: boolean;
-  loadRequest: { program: Program; nonce: number } | null;
+  loadRequest: LoadRequest | null;
   currentHintText: string | null;
   speech: Speech;
   /** True briefly after a step succeeds. */
@@ -229,7 +229,7 @@ interface Internal {
   evaluated: { code: string; info: EvalInfo | null } | null;
   typo: EvalErrorInfo | null;
   targetPlaying: boolean;
-  loadRequest: { program: Program; nonce: number } | null;
+  loadRequest: LoadRequest | null;
   speech: Speech;
   cheering: boolean;
 }
@@ -442,9 +442,10 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
     debounceTimer = setTimeout(run, debounceMs);
   }
 
-  function requestLoad(program: Program): void {
+  /** `keepUndo` for "Show me", so the learner can undo back to their own attempt. */
+  function requestLoad(program: Program, keepUndo: boolean): void {
     nonce += 1;
-    set({ loadRequest: { program, nonce } });
+    set({ loadRequest: { program, nonce, keepUndo } });
   }
 
   function cheer(): void {
@@ -504,7 +505,7 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
     const step = lesson.steps[next.stepIndex];
     set({ speech: speech([...success, ...(step?.say ?? [])]) });
     baseline = step?.start ?? checkedProgram;
-    if (step?.start) requestLoad(step.start);
+    if (step?.start) requestLoad(step.start, false);
     // The new step may already be satisfied (e.g. "press play" while playing).
     schedule();
   }
@@ -518,7 +519,7 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
     if (level === 2 && point) {
       highlightBus.emit(withCodeSpans({ ttlMs: HINT_HIGHLIGHT_MS, ...point }, state.program));
     }
-    if (level === 3) requestLoad(step.solution);
+    if (level === 3) requestLoad(step.solution, true);
   }
 
   /* -- actions -- */

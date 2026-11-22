@@ -22,6 +22,14 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** Blockly fires (and records undo for) events after an animation frame and a 0 ms timer. */
+const eventsFired = () =>
+  new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      setTimeout(resolve, 0);
+    });
+  });
+
 const sample = () => program(110, layer(sound('bd sd'), mod('gain', 0.8)));
 
 describe('loadWorkspace', () => {
@@ -41,6 +49,27 @@ describe('loadWorkspace', () => {
     loadWorkspace(ws, { kind: 'saved', state: saved });
 
     expect(workspaceToProgram(ws).program).toEqual(p);
+  });
+
+  it('clears undo after a load, so undo never steps back across it', async () => {
+    loadWorkspace(ws, { kind: 'program', program: sample() });
+    loadWorkspace(ws, { kind: 'program', program: program(null, layer(sound('hh*8'))) });
+    await eventsFired();
+    expect(ws.getUndoStack()).toHaveLength(0);
+  });
+
+  it('with keepUndo, one undo steps back from the loaded program to the previous one', async () => {
+    const mine = sample();
+    loadWorkspace(ws, { kind: 'program', program: mine });
+    await eventsFired();
+    const solution = program(null, layer(sound('bd*4')), layer(sound('hh*8')));
+    loadWorkspace(ws, { kind: 'program', program: solution }, { keepUndo: true });
+    await eventsFired();
+    expect(workspaceToProgram(ws).program).toEqual(solution);
+
+    ws.undo(false);
+    await eventsFired();
+    expect(workspaceToProgram(ws).program).toEqual(mine);
   });
 
   it('leaves the workspace empty for null', () => {
