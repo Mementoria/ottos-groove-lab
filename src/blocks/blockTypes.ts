@@ -190,9 +190,12 @@ export function validateMini(value: string): string | null {
   return /["\\]/.test(value) ? null : value;
 }
 
-/** A drum sound must be a single sample name, e.g. `bd` or `bd:3`. */
+/**
+ * A drum sound must be a single sample name, e.g. `bd` or `bd:3`. The grid writes it into every
+ * hit, so a mini-notation operator (`bd*2`) would play differently from what the grid shows.
+ */
 export function validateSoundName(value: string): string | null {
-  return /^[^\s"\\]+$/.test(value) ? value : null;
+  return /^[^\s"\\*/!@<>[\],~(){}|?:^]+(?::\d+)?$/.test(value) ? value : null;
 }
 
 const EXT_HAT = 'ogl_hat';
