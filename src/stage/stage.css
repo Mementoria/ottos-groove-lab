@@ -76,9 +76,19 @@
   min-width: 0;
 }
 
+/* Otto gives up some size in a narrow window, but never vanishes. */
+.stage-otto > .otto {
+  flex: 0 1 130px;
+  min-width: 64px;
+  height: auto;
+}
+
+/* Long code words in a line wrap too, so the bubble never spills over the transport. */
 .otto-bubble {
   position: relative;
+  min-width: 0;
   max-width: 340px;
+  overflow-wrap: anywhere;
   padding: 10px 14px;
   border-radius: 14px;
   background: #ffffff;
@@ -140,6 +150,9 @@
 
 /* Scope + transport */
 .stage-right {
+  /* Above the bubble, should anything still overlap: play and stop stay reachable. */
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
