@@ -118,7 +118,7 @@ function runControlVaries(check: Of<'controlVaries'>, ctx: CheckContext): CheckR
 
 function runSignalSlow(check: Of<'signalSlow'>, ctx: CheckContext): CheckResult {
   const slows = ctx.program.layers
-    .filter((l) => !l.muted)
+    .filter((l) => !l.muted && isRenderable(l))
     .flatMap((l) => l.mods)
     .flatMap((m) =>
       'arg' in m && m.name === check.control && m.arg.kind === 'signal' ? [m.arg.slow] : [],
@@ -133,7 +133,7 @@ function runSignalSlow(check: Of<'signalSlow'>, ctx: CheckContext): CheckResult 
 
 function runSignalRange(check: Of<'signalRange'>, ctx: CheckContext): CheckResult {
   const spreads = ctx.program.layers
-    .filter((l) => !l.muted)
+    .filter((l) => !l.muted && isRenderable(l))
     .flatMap((l) => l.mods)
     .flatMap((m) =>
       'arg' in m && m.name === check.control && m.arg.kind === 'signal'
@@ -171,8 +171,11 @@ export function runCheck(check: Check, ctx: CheckContext): CheckResult {
       return outcome(false, `none passed: ${reasons.join('; ')}`);
     }
     case 'layers': {
-      // Only arms that sound count, as in the check expression.
-      const n = ctx.program.layers.filter((l) => !l.muted && isRenderable(l)).length;
+      // Only arms that sound count, as in the check expression; a grid with no hits is silent.
+      const n = ctx.program.layers.filter(
+        (l) =>
+          !l.muted && isRenderable(l) && (l.source.kind !== 'grid' || l.source.steps.some(Boolean)),
+      ).length;
       return outcome(n >= check.min, `${String(n)} layers, need ${String(check.min)}`);
     }
     case 'tempo': {

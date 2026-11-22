@@ -68,6 +68,12 @@ describe('runCheck', () => {
     expect(await passes(check, 120, kick, layer(sound('hh*8')))).toBe(true);
   });
 
+  it('layers leaves out a grid with no hits, but counts one with any', async () => {
+    const check: Check = { kind: 'layers', min: 2 };
+    expect(await passes(check, 120, kick, layer(grid('hh', [])))).toBe(false);
+    expect(await passes(check, 120, kick, layer(grid('hh', [15])))).toBe(true);
+  });
+
   it('tempo reads program.bpm', async () => {
     const check: Check = { kind: 'tempo', bpm: 120, tolerance: 5 };
     expect(await passes(check, 122, kick)).toBe(true);
@@ -204,6 +210,12 @@ describe('runCheck', () => {
     expect(await passes(check, 120, kick, silenced)).toBe(false);
   });
 
+  it('signalSlow ignores a wave on a blank arm, which plays nothing', async () => {
+    const check: Check = { kind: 'signalSlow', control: 'lpf', min: 8 };
+    const blank = layer(notes('  '), mod('lpf', signal('sine', 200, 2000, 8)));
+    expect(await passes(check, 120, kick, blank)).toBe(false);
+  });
+
   it('signalRange passes when the control is driven by a wide enough signal', async () => {
     const check: Check = { kind: 'signalRange', control: 'lpf', minSpread: 500 };
     const wide = layer(notes('c2 eb2'), mod('lpf', signal('sine', 200, 1000, 8)));
@@ -226,5 +238,11 @@ describe('runCheck', () => {
     expect(await passes(check, 120, fixed)).toBe(false);
     expect(await passes(check, 120, elsewhere)).toBe(false);
     expect(await passes(check, 120, kick, silenced)).toBe(false);
+  });
+
+  it('signalRange ignores a wave on a blank arm, which plays nothing', async () => {
+    const check: Check = { kind: 'signalRange', control: 'lpf', minSpread: 500 };
+    const blank = layer(notes(''), mod('lpf', signal('sine', 200, 1000, 8)));
+    expect(await passes(check, 120, kick, blank)).toBe(false);
   });
 });
