@@ -18,7 +18,7 @@ interface Fake {
   context: FakeContext;
   unlock: ReturnType<typeof vi.fn<() => Promise<void>>>;
   init: ReturnType<typeof vi.fn<() => Promise<void>>>;
-  evaluate: ReturnType<typeof vi.fn<(code: string, autoplay: boolean) => Promise<EvalInfo | null>>>;
+  evaluate: ReturnType<typeof vi.fn<(code: string, autoplay: boolean) => Promise<EvalInfo>>>;
 }
 
 const info: EvalInfo = { pattern: {} as Pattern, miniLocations: [] };
@@ -45,7 +45,7 @@ function makeFake(): Fake {
   });
   const evaluate = vi.fn((code: string, autoplay: boolean) => {
     calls.push(`evaluate:${code}:${String(autoplay)}`);
-    return Promise.resolve<EvalInfo | null>(info);
+    return Promise.resolve(info);
   });
   const backend: StrudelBackend = {
     unlock,
@@ -140,10 +140,56 @@ describe('createEngine', () => {
     const fake = makeFake();
     const engine = createEngine(fake.backend);
     await engine.play('good');
-    fake.evaluate.mockResolvedValueOnce(null);
+    fake.evaluate.mockRejectedValueOnce(new Error('parse error'));
     expect(await engine.play('bad(')).toBeNull();
     expect(engine.isPlaying()).toBe(true);
     expect(engine.cyclePosition()).toBe(1.5);
+  });
+
+  it('reports an evaluation error until the next evaluation succeeds', async () => {
+    const fake = makeFake();
+    const engine = createEngine(fake.backend);
+    expect(engine.evalError()).toBeNull();
+    const typo = new Error('[mini] parse error');
+    fake.evaluate.mockRejectedValueOnce(typo);
+    expect(await engine.play('s("bd [sd")')).toBeNull();
+    expect(engine.evalError()).toBe(typo);
+    expect(engine.isPlaying()).toBe(false);
+
+    expect(await engine.update('s("bd [sd]")')).toBe(info);
+    expect(engine.evalError()).toBeNull();
+  });
+
+  it('wraps a non-Error rejection and clears the error on silence', async () => {
+    const fake = makeFake();
+    const engine = createEngine(fake.backend);
+    fake.evaluate.mockRejectedValueOnce('oops');
+    await engine.update('s("bd [")');
+    expect(engine.evalError()?.message).toBe('oops');
+    await engine.update('  ');
+    expect(engine.evalError()).toBeNull();
+  });
+
+  it('after an init error, update resolves null without retrying; play retries', async () => {
+    const fake = makeFake();
+    fake.init.mockRejectedValueOnce(new Error('samples offline'));
+    const engine = createEngine(fake.backend);
+    await engine.play('s("bd")');
+    expect(engine.status()).toBe('error');
+    const statuses: EngineStatus[] = [];
+    engine.onStatus((status) => {
+      statuses.push(status);
+    });
+
+    expect(await engine.update('s("bd sd")')).toBeNull();
+    expect(await engine.update('s("bd sd hh")')).toBeNull();
+    expect(fake.init).toHaveBeenCalledTimes(1);
+    expect(fake.evaluate).not.toHaveBeenCalled();
+    expect(statuses).toEqual([]);
+
+    expect(await engine.play('s("bd")')).toBe(info);
+    expect(fake.init).toHaveBeenCalledTimes(2);
+    expect(engine.status()).toBe('ready');
   });
 
   it('treats empty or whitespace code as silence without evaluating', async () => {

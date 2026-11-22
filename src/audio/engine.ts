@@ -20,8 +20,16 @@ export interface AudioEngine {
   wake(): Promise<void>;
   /** Starts audio if needed, then evaluates and plays. Resolves null on empty code or failure. */
   play(code: string): Promise<EvalInfo | null>;
-  /** Re-evaluates; plays only if already playing. */
+  /**
+   * Re-evaluates; plays only if already playing. After an init error it resolves null without
+   * retrying: only `start` and `play` (user gestures) try again.
+   */
   update(code: string): Promise<EvalInfo | null>;
+  /**
+   * Why the latest `play` or `update` could not evaluate its code (a typo in a pattern, say), or
+   * null if it evaluated, was silence, or never reached evaluation. The old pattern keeps playing.
+   */
+  evalError(): Error | null;
   stop(): void;
   isPlaying(): boolean;
   cyclePosition(): number;
@@ -34,7 +42,8 @@ export interface StrudelBackend {
   unlock(): Promise<void>;
   /** Slow: worklets, samples and soundfonts. Called after `unlock`. */
   init(): Promise<void>;
-  evaluate(code: string, autoplay: boolean): Promise<EvalInfo | null>;
+  /** Rejects with the evaluation error when the code won't evaluate. */
+  evaluate(code: string, autoplay: boolean): Promise<EvalInfo>;
   stop(): void;
   now(): number;
   audioContext(): AudioContext;
@@ -51,6 +60,7 @@ export function createEngine(backend: StrudelBackend = createStrudelBackend()): 
   /** Settles once the current init attempt has unlocked audio (or failed to). */
   let unlocked: Promise<void> = Promise.resolve();
   let playing = false;
+  let lastEvalError: Error | null = null;
   let analyserNode: AnalyserNode | null = null;
   let connectedTo: AudioNode | null = null;
   const listeners = new Set<(s: EngineStatus, error?: Error) => void>();
@@ -107,6 +117,15 @@ export function createEngine(backend: StrudelBackend = createStrudelBackend()): 
     await Promise.race([unlocked, starting]);
   }
 
+  async function evaluate(code: string, autoplay: boolean): Promise<EvalInfo | null> {
+    try {
+      return await backend.evaluate(code, autoplay);
+    } catch (reason) {
+      lastEvalError = toError(reason);
+      return null;
+    }
+  }
+
   function silence(): null {
     if (playing) stop();
     return null;
@@ -118,19 +137,23 @@ export function createEngine(backend: StrudelBackend = createStrudelBackend()): 
   }
 
   async function play(code: string): Promise<EvalInfo | null> {
+    lastEvalError = null;
     if (code.trim() === '') return silence();
     await start();
     if (status !== 'ready') return null;
-    const result = await backend.evaluate(code, true);
+    const result = await evaluate(code, true);
     if (result !== null) playing = true;
     return result;
   }
 
   async function update(code: string): Promise<EvalInfo | null> {
+    lastEvalError = null;
     if (code.trim() === '') return silence();
+    // Retrying here would flicker the status (and build a new repl) on every edit.
+    if (status === 'error') return null;
     await ensureReady();
     if (status !== 'ready') return null;
-    return backend.evaluate(code, playing);
+    return evaluate(code, playing);
   }
 
   return {
@@ -146,6 +169,7 @@ export function createEngine(backend: StrudelBackend = createStrudelBackend()): 
     play,
     update,
     stop,
+    evalError: () => lastEvalError,
     isPlaying: () => playing,
     cyclePosition: () => (playing ? backend.now() : 0),
     analyser: () => analyserNode,
@@ -157,6 +181,7 @@ export function createStrudelBackend(): StrudelBackend {
   let web: typeof StrudelWeb | null = null;
   let repl: StrudelWeb.StrudelRepl | null = null;
   let lastLocations: [number, number][] = [];
+  let lastError: unknown = null;
 
   function loaded(): { web: typeof StrudelWeb; repl: StrudelWeb.StrudelRepl } {
     if (!web || !repl) throw new Error('Strudel is not initialised yet');
@@ -192,13 +217,19 @@ export function createStrudelBackend(): StrudelBackend {
         afterEval: ({ meta }) => {
           lastLocations = meta?.miniLocations ?? [];
         },
+        // The repl catches evaluation errors (and keeps the old pattern); this is how we hear.
+        onEvalError: (error) => {
+          lastError = error;
+        },
       });
       web = webModule;
     },
     async evaluate(code, autoplay) {
       lastLocations = [];
+      lastError = null;
       const pattern = await loaded().repl.evaluate(code, autoplay);
-      return pattern === undefined ? null : { pattern, miniLocations: lastLocations };
+      if (pattern === undefined) throw lastError ?? new Error('The code could not be evaluated.');
+      return { pattern, miniLocations: lastLocations };
     },
     stop: () => {
       loaded().repl.stop();

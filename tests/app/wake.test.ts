@@ -10,6 +10,7 @@ function engineWaking(wake: () => Promise<void>): AudioEngine {
     play: () => Promise.resolve(null),
     update: () => Promise.resolve(null),
     stop: () => {},
+    evalError: () => null,
     isPlaying: () => false,
     cyclePosition: () => 0,
     analyser: () => null,

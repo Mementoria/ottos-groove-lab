@@ -61,6 +61,8 @@ declare module '@strudel/web' {
   export interface StrudelOptions {
     prebake?: () => Promise<void>;
     afterEval?: (info: { code: string; pattern: Pattern; meta: EvalMeta | undefined }) => void;
+    /** Called with the error when `evaluate` fails; `evaluate` then resolves undefined. */
+    onEvalError?: (error: unknown) => void;
   }
 
   export interface SuperdoughAudioController {

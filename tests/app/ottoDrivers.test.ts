@@ -10,6 +10,7 @@ function engineWith(opts: { playing: boolean; cycle?: number; analyser?: Analyse
     play: () => Promise.resolve(null),
     update: () => Promise.resolve(null),
     stop: () => {},
+    evalError: () => null,
     isPlaying: () => opts.playing,
     cyclePosition: () => opts.cycle ?? 0,
     analyser: () => opts.analyser ?? null,

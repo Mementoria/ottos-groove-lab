@@ -42,6 +42,7 @@ interface FakeEngine extends AudioEngine {
   play: ReturnType<typeof vi.fn<(code: string) => Promise<EvalInfo | null>>>;
   update: ReturnType<typeof vi.fn<(code: string) => Promise<EvalInfo | null>>>;
   stop: ReturnType<typeof vi.fn<() => void>>;
+  evalError: ReturnType<typeof vi.fn<() => Error | null>>;
 }
 
 const evaluated: EvalInfo = { pattern: {} as EvalInfo['pattern'], miniLocations: [] };
@@ -67,6 +68,7 @@ function fakeEngine(): FakeEngine & { setPlayDelay: (d: Deferred<null>) => void 
     stop: vi.fn(() => {
       playing = false;
     }),
+    evalError: vi.fn<() => Error | null>(() => null),
     isPlaying: () => playing,
     cyclePosition: () => 0,
     analyser: () => null,

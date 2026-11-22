@@ -16,6 +16,7 @@ function fakeEngine(wake: () => Promise<void> = () => Promise.resolve()): AudioE
     play: () => Promise.resolve(null),
     update: () => Promise.resolve(null),
     stop: () => {},
+    evalError: () => null,
     isPlaying: () => false,
     cyclePosition: () => 0,
     analyser: () => null,
