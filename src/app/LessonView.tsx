@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { AudioEngine, EngineStatus } from '../audio/engine';
 import { BlocksPane } from '../blocks/BlocksPane';
+import { typoWarnings } from '../blocks/convert';
 import { CodePane } from '../codepane/CodePane';
 import type { Lesson } from '../lessons/types';
 import { Stage } from '../stage/Stage';
@@ -53,7 +54,8 @@ export function LessonView({ engine, lessons, index, onBack, onNext }: LessonVie
     };
   }, [copied]);
 
-  const { lesson, runner, generated } = session;
+  const { lesson, runner, generated, evalError } = session;
+  const extraWarnings = useMemo(() => typoWarnings(evalError?.nodeIds ?? []), [evalError]);
   const step = lesson.steps[runner.stepIndex];
   const bubble = presentBubble(session, step, { onNext, onBack });
   const mood = session.cheering ? 'cheer' : doneKey === bubble.key ? 'idle' : 'talking';
@@ -114,6 +116,7 @@ export function LessonView({ engine, lessons, index, onBack, onNext }: LessonVie
             initial={session.initial}
             onChange={session.onBlocksChange}
             loadRequest={session.loadRequest}
+            extraWarnings={extraWarnings}
           />
         </div>
         <div className="lesson-code">

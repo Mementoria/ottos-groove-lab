@@ -30,6 +30,8 @@ export interface BlocksPaneProps {
   onChange(result: BlocksPaneChange): void;
   /** "Show me" and lesson start: each new nonce replaces the workspace with the program. */
   loadRequest: { program: Program; nonce: number } | null;
+  /** Warnings found outside conversion (a pattern typo from playback), shown alongside its own. */
+  extraWarnings: readonly ConvertWarning[];
 }
 
 /** `workspaces.load` has no try/finally, so a throw leaves its global state behind. Undo that. */
@@ -129,13 +131,15 @@ function pointAtPalette(
 
 /** The Blockly workspace. Reports every (non-UI) change as a Program plus warnings and state. */
 export function BlocksPane(props: BlocksPaneProps) {
-  const { unlocked, loadRequest } = props;
+  const { unlocked, loadRequest, extraWarnings } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<Blockly.WorkspaceSvg | null>(null);
   // The latest props, for the workspace's long-lived listeners (and its creation).
   const propsRef = useRef(props);
   const toolboxKeyRef = useRef<string | null>(null);
   const appliedNonceRef = useRef<number | null>(null);
+  /** Re-applies conversion and extra warnings together; set while the workspace exists. */
+  const refreshWarningsRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     propsRef.current = props;
@@ -158,13 +162,19 @@ export function BlocksPane(props: BlocksPaneProps) {
 
     let disposed = false;
     let warned = new Set<string>();
+    let converted: readonly ConvertWarning[] = [];
+    const refreshWarnings = () => {
+      warned = applyWarnings(ws, [...converted, ...propsRef.current.extraWarnings], warned);
+    };
+    refreshWarningsRef.current = refreshWarnings;
     let flushQueued = false;
     // Blockly fires events in batches (a drop or a load is many events); report once per batch.
     const flush = () => {
       flushQueued = false;
       if (disposed) return;
       const { program, warnings } = workspaceToProgram(ws);
-      warned = applyWarnings(ws, warnings, warned);
+      converted = warnings;
+      refreshWarnings();
       propsRef.current.onChange({
         program,
         warnings,
@@ -246,6 +256,7 @@ export function BlocksPane(props: BlocksPaneProps) {
       for (const timer of timers) clearTimeout(timer);
       ws.dispose();
       wsRef.current = null;
+      refreshWarningsRef.current = null;
       // A re-created workspace (StrictMode re-runs effects) must apply the load request again.
       appliedNonceRef.current = null;
     };
@@ -258,6 +269,10 @@ export function BlocksPane(props: BlocksPaneProps) {
     ws.updateToolbox(buildToolbox(unlocked));
     toolboxKeyRef.current = key;
   }, [unlocked]);
+
+  useEffect(() => {
+    refreshWarningsRef.current?.();
+  }, [extraWarnings]);
 
   useEffect(() => {
     const ws = wsRef.current;

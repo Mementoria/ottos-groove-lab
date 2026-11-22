@@ -228,7 +228,11 @@ export function createStrudelBackend(): StrudelBackend {
       lastLocations = [];
       lastError = null;
       const pattern = await loaded().repl.evaluate(code, autoplay);
-      if (pattern === undefined) throw lastError ?? new Error('The code could not be evaluated.');
+      if (pattern === undefined) {
+        throw lastError === null
+          ? new Error('The code could not be evaluated.')
+          : toError(lastError);
+      }
       return { pattern, miniLocations: lastLocations };
     },
     stop: () => {

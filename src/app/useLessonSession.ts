@@ -2,14 +2,16 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { AudioEngine, EvalInfo } from '../audio/engine';
 import type { BlocksPaneChange, BlocksPaneInitial } from '../blocks/BlocksPane';
 import type { BlockType } from '../blocks/blockTypes';
+import { nodeIdsOfTypes } from '../blocks/convert';
 import { buildContext, runCheck } from '../checkers/checks';
 import { course as defaultCourse, unlockedFor } from '../lessons/content';
 import { initRunner, reduce, type RunnerEvent, type RunnerState } from '../lessons/runner';
 import type { Lesson, Step } from '../lessons/types';
-import { highlightBus } from '../otto/highlightBus';
+import { highlightBus, type Highlight } from '../otto/highlightBus';
 import { toStrudelCode, type Generated } from '../program/codegen';
 import type { Program } from '../program/types';
 import { loadState, saveState, type SavedState } from './storage';
+import { brokenSourceIds } from './typos';
 
 export const DEFAULT_DEBOUNCE_MS = 400;
 const TICK_MS = 1000;
@@ -23,6 +25,7 @@ const NOTHING_TO_PLAY_LINE = "There's nothing to play yet. Drag an arm into the 
 const NEXT_LESSON_LINE = "That's the lesson done. Ready for the next one?";
 const LAST_LESSON_LINE = "That's every lesson so far. More are on the way!";
 const REVISIT_LINE = "You've finished this one already. Keep jamming, or move on when you like.";
+export const TYPO_LINE = 'Hmm, that pattern has a typo. Check your brackets and spaces.';
 
 const EMPTY: Program = { bpm: null, layers: [] };
 
@@ -32,6 +35,12 @@ export interface SessionDeps {
   debounceMs?: number;
   /** For tests; defaults to the real course. */
   course?: Lesson[];
+}
+
+/** The learner's code won't evaluate: Strudel's message, and the source blocks at fault. */
+export interface EvalErrorInfo {
+  message: string;
+  nodeIds: string[];
 }
 
 /** What Otto is saying. `key` is new for every presentation, even of identical lines. */
@@ -47,6 +56,8 @@ export interface LessonSessionState {
   generated: Generated;
   /** Only ever the evaluation of the current `generated.code`; null otherwise. */
   evalInfo: EvalInfo | null;
+  /** Set when the learner's latest evaluated code had a typo; kept until a later one evaluates. */
+  evalError: EvalErrorInfo | null;
   playing: boolean;
   targetPlaying: boolean;
   loadRequest: { program: Program; nonce: number } | null;
@@ -91,7 +102,7 @@ interface Playback {
  */
 function createPlayback(
   engine: AudioEngine,
-  onSettled: (code: string, info: EvalInfo | null) => void,
+  onSettled: (code: string, info: EvalInfo | null, error: Error | null, played: boolean) => void,
 ): Playback {
   let busy = false;
   let next: { code: string; play: boolean } | null = null;
@@ -112,8 +123,11 @@ function createPlayback(
       for (let job = take(); job !== null; job = take()) {
         const couldStart = job.play || engine.isPlaying();
         let info: EvalInfo | null = null;
+        let evalError: Error | null = null;
         try {
           info = job.play ? await engine.play(job.code) : await engine.update(job.code);
+          // Read at once: the engine reports on its latest evaluation, which is this one.
+          evalError = engine.evalError();
         } catch (error) {
           console.warn('Evaluation failed.', error);
         }
@@ -122,7 +136,7 @@ function createPlayback(
         if (!wantPlaying && couldStart) engine.stop();
         // Play with nothing to play, or an edit down to silence, ends the intent too.
         if (wantPlaying && !playQueued() && !engine.isPlaying()) wantPlaying = false;
-        if (!queued()) onSettled(job.code, info);
+        if (!queued()) onSettled(job.code, info, evalError, job.play);
       }
     } finally {
       busy = false;
@@ -195,6 +209,13 @@ function changedNodeIds(before: Program, after: Program): string[] {
     .map(([id]) => id);
 }
 
+/** Adds the nodes its block types stand for in `p`, so the code spans glow with the blocks. */
+function withCodeSpans(h: Highlight, p: Program): Highlight {
+  const extra = nodeIdsOfTypes(p, h.blockTypes ?? []);
+  if (extra.length === 0) return h;
+  return { ...h, nodeIds: [...new Set([...(h.nodeIds ?? []), ...extra])] };
+}
+
 function persist(update: (s: SavedState) => SavedState): void {
   saveState(update(loadState()));
 }
@@ -206,6 +227,7 @@ interface Internal {
   program: Program;
   generated: Generated;
   evaluated: { code: string; info: EvalInfo | null } | null;
+  typo: EvalErrorInfo | null;
   targetPlaying: boolean;
   loadRequest: { program: Program; nonce: number } | null;
   speech: Speech;
@@ -257,6 +279,7 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
     program: firstProgram,
     generated: toStrudelCode(firstProgram),
     evaluated: null,
+    typo: null,
     targetPlaying: false,
     loadRequest: null,
     speech: { key: '', lines: [] },
@@ -279,6 +302,7 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
       program: state.program,
       generated,
       evalInfo: evaluated?.code === generated.code ? evaluated.info : null,
+      evalError: state.typo,
       playing: engine.isPlaying(),
       targetPlaying: state.targetPlaying,
       loadRequest: state.loadRequest,
@@ -320,12 +344,15 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
   let targetCode: string | null = null;
   /** The program the current step began with, for the success glow. */
   let baseline: Program | null = startProgram;
+  /** Bumped whenever a pending typo lookup stops being wanted. */
+  let typoSeq = 0;
 
-  const playback = createPlayback(engine, (code, info) => {
+  const playback = createPlayback(engine, (code, info, error, played) => {
     if (!attached) return;
     // A goal that won't evaluate hands back to the learner rather than claiming to play.
     if (state.targetPlaying && code === targetCode && info === null) returnToLearner();
     set({ evaluated: { code, info } });
+    noteTypo(code, error, played);
     // `playing` may have just turned true, which a check can depend on.
     if (!state.targetPlaying) check();
   });
@@ -371,6 +398,32 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
       })
       .catch((error: unknown) => {
         console.warn('Check result could not be applied.', error);
+      });
+  }
+
+  /**
+   * Keeps the typo state in step with the learner's evaluations. A failure finds the broken
+   * layers' source blocks; Otto mentions it when it first appears, or when Play is pressed.
+   */
+  function noteTypo(code: string, error: Error | null, played: boolean): void {
+    // Only the learner's current code counts (not the goal's, and not code already replaced:
+    // its own evaluation is on the way).
+    if (code !== state.generated.code || code === targetCode) return;
+    typoSeq += 1;
+    if (error === null) {
+      if (state.typo !== null) set({ typo: null });
+      return;
+    }
+    const seq = typoSeq;
+    const announce = played || state.typo === null;
+    brokenSourceIds(state.program)
+      .then((nodeIds) => {
+        if (!attached || seq !== typoSeq) return;
+        const typo = { message: error.message, nodeIds };
+        set(announce ? { typo, speech: speech([TYPO_LINE]) } : { typo });
+      })
+      .catch((reason: unknown) => {
+        console.warn('Could not locate the typo.', reason);
       });
   }
 
@@ -462,7 +515,9 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
     if (!step || text === null) return;
     state = { ...state, speech: speech([text]) };
     const point = step.hints[1].highlight;
-    if (level === 2 && point) highlightBus.emit({ ttlMs: HINT_HIGHLIGHT_MS, ...point });
+    if (level === 2 && point) {
+      highlightBus.emit(withCodeSpans({ ttlMs: HINT_HIGHLIGHT_MS, ...point }, state.program));
+    }
     if (level === 3) requestLoad(step.solution);
   }
 

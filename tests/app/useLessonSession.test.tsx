@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { loadState, saveState, STORAGE_KEY } from '../../src/app/storage';
-import { SHOW_ME_LINE, useLessonSession } from '../../src/app/useLessonSession';
+import { brokenSourceIds } from '../../src/app/typos';
+import { SHOW_ME_LINE, TYPO_LINE, useLessonSession } from '../../src/app/useLessonSession';
 import type { AudioEngine, EvalInfo } from '../../src/audio/engine';
 import type { CheckContext } from '../../src/checkers/checks';
 import { IDLE_MS } from '../../src/lessons/runner';
@@ -321,6 +322,173 @@ describe('useLessonSession: last edit wins (Review Focus 4)', () => {
   });
 });
 
+describe('useLessonSession: one evaluation in flight (Review Focus 4)', () => {
+  const codeOf = (p: Program) => toStrudelCode(p).code;
+  const infoFor = (tag: number): EvalInfo => ({
+    pattern: {} as EvalInfo['pattern'],
+    miniLocations: [[0, tag]],
+  });
+
+  /** Each edit lands after the debounce, so each reaches the playback queue. */
+  async function edit(hook: ReturnType<typeof setup>['hook'], p: Program): Promise<void> {
+    act(() => {
+      hook.result.current.onBlocksChange(change(p));
+    });
+    await advance(100);
+  }
+
+  it('holds later updates until the in-flight one settles, then sends only the latest', async () => {
+    const { engine, hook } = setup();
+    const a = program(null, layer(sound('bd')), layer(sound('a')));
+    const b = program(null, layer(sound('b')));
+    const c = program(null, layer(sound('c')));
+    const d = program(null, layer(sound('d')));
+    const inFlight = deferred<EvalInfo | null>();
+    const followUp = deferred<EvalInfo | null>();
+    engine.update.mockReturnValueOnce(inFlight.promise).mockReturnValueOnce(followUp.promise);
+
+    await edit(hook, a);
+    expect(engine.update).toHaveBeenCalledTimes(1);
+    expect(engine.update).toHaveBeenLastCalledWith(codeOf(a));
+
+    // Three edits while A is still evaluating: none is sent yet.
+    await edit(hook, b);
+    await edit(hook, c);
+    await edit(hook, d);
+    expect(engine.update).toHaveBeenCalledTimes(1);
+
+    inFlight.resolve(infoFor(1));
+    await flush();
+    // They collapse into one follow-up with the latest code.
+    expect(engine.update).toHaveBeenCalledTimes(2);
+    expect(engine.update).toHaveBeenLastCalledWith(codeOf(d));
+    expect(hook.result.current.evalInfo).toBeNull();
+
+    const latest = infoFor(4);
+    followUp.resolve(latest);
+    await flush();
+    expect(hook.result.current.evalInfo).toBe(latest);
+    await advance(1_000);
+    expect(engine.update).toHaveBeenCalledTimes(2);
+  });
+
+  it('never reports a superseded result, even when the code ends up the same again', async () => {
+    const { engine, hook } = setup();
+    const a = program(null, layer(sound('a')));
+    const b = program(null, layer(sound('b')));
+    const inFlight = deferred<EvalInfo | null>();
+    const followUp = deferred<EvalInfo | null>();
+    engine.update.mockReturnValueOnce(inFlight.promise).mockReturnValueOnce(followUp.promise);
+
+    await edit(hook, a);
+    await edit(hook, b);
+    await edit(hook, a);
+    const stale = infoFor(1);
+    inFlight.resolve(stale);
+    await flush();
+    // A's first result arrived while a newer evaluation of A was queued: it is not reported.
+    expect(hook.result.current.evalInfo).toBeNull();
+    expect(engine.update).toHaveBeenCalledTimes(2);
+    expect(engine.update).toHaveBeenLastCalledWith(codeOf(a));
+
+    const fresh = infoFor(2);
+    followUp.resolve(fresh);
+    await flush();
+    expect(hook.result.current.evalInfo).toBe(fresh);
+  });
+});
+
+describe('useLessonSession: typos', () => {
+  const typo = new Error('[mini] parse error at line 1');
+  const brokenSource = sound('bd [sd hh');
+  // One arm each, so the fixture step's two-arm check never passes.
+  const broken = program(null, layer(brokenSource));
+  const fixed = program(null, layer(sound('bd [sd hh]')));
+
+  /** The engine fails to evaluate any code with an unclosed bracket. */
+  function typoEngine(): FakeEngine {
+    const engine = fakeEngine();
+    let lastCode = '';
+    const failing = () => (lastCode.split('[').length > lastCode.split(']').length ? typo : null);
+    const evaluate = (code: string): Promise<EvalInfo | null> => {
+      lastCode = code;
+      return Promise.resolve(failing() === null ? evaluated : null);
+    };
+    engine.update.mockImplementation(evaluate);
+    engine.play.mockImplementation(evaluate);
+    engine.evalError.mockImplementation(failing);
+    return engine;
+  }
+
+  beforeAll(async () => {
+    // Load the check compiler once, so locating a typo takes only a few microtasks.
+    await brokenSourceIds(program(null, layer(sound('bd'))));
+  });
+
+  it('warns on the broken block and Otto says so; fixing it clears both', async () => {
+    const { hook } = setup({ engine: typoEngine() });
+    act(() => {
+      hook.result.current.onBlocksChange(change(broken));
+    });
+    await advance(100);
+    await flush();
+    expect(hook.result.current.evalError).toEqual({
+      message: typo.message,
+      nodeIds: [brokenSource.id],
+    });
+    expect(hook.result.current.speech.lines).toEqual([TYPO_LINE]);
+
+    act(() => {
+      hook.result.current.onBlocksChange(change(fixed));
+    });
+    // The warning stays until the fix has actually evaluated.
+    expect(hook.result.current.evalError).not.toBeNull();
+    await advance(100);
+    await flush();
+    expect(hook.result.current.evalError).toBeNull();
+  });
+
+  it('does not repeat the line while the pattern stays broken, but Play says it again', async () => {
+    const { hook } = setup({ engine: typoEngine() });
+    act(() => {
+      hook.result.current.onBlocksChange(change(broken));
+    });
+    await advance(100);
+    await flush();
+    const first = hook.result.current.speech.key;
+
+    const stillBroken = program(null, layer(sound('cp [sd')));
+    act(() => {
+      hook.result.current.onBlocksChange(change(stillBroken));
+    });
+    await advance(100);
+    await flush();
+    expect(hook.result.current.speech.key).toBe(first);
+
+    act(() => {
+      hook.result.current.play();
+    });
+    await flush();
+    expect(hook.result.current.speech.key).not.toBe(first);
+    expect(hook.result.current.speech.lines).toEqual([TYPO_LINE]);
+    expect(hook.result.current.playing).toBe(false);
+  });
+
+  it('pressing Play on a broken pattern from silence says so', async () => {
+    const { hook } = setup({ engine: typoEngine() });
+    act(() => {
+      hook.result.current.onBlocksChange(change(broken));
+    });
+    act(() => {
+      hook.result.current.play();
+    });
+    await flush();
+    expect(hook.result.current.playing).toBe(false);
+    expect(hook.result.current.speech.lines).toEqual([TYPO_LINE]);
+    expect(hook.result.current.evalError?.nodeIds).toEqual([brokenSource.id]);
+  });
+});
+
 describe('useLessonSession: steps, hints and success', () => {
   it('climbs the hint ladder: nudge, then point, then show me', async () => {
     const seen: Highlight[] = [];
@@ -341,7 +509,10 @@ describe('useLessonSession: steps, hints and success', () => {
     });
     expect(hook.result.current.currentHintText).toBe('Grab another arm block.');
     // Long enough to follow the pointer; content may still set its own ttl.
-    expect(seen).toStrictEqual([{ ttlMs: 6000, blockTypes: ['ogl_layer'] }]);
+    // The arms already in the program glow in the code pane too.
+    expect(seen).toStrictEqual([
+      { ttlMs: 6000, blockTypes: ['ogl_layer'], nodeIds: [START.layers[0]?.id] },
+    ]);
 
     act(() => {
       hook.result.current.requestHint();
@@ -391,8 +562,9 @@ describe('useLessonSession: steps, hints and success', () => {
     await advance(100);
     await flush();
 
-    const added = solved.layers[1]?.source.id;
-    expect(seen).toEqual([{ nodeIds: [added] }]);
+    // The new arm: its source and its whole `$:` line.
+    const added = solved.layers[1];
+    expect(seen).toEqual([{ nodeIds: [added?.source.id, added?.id] }]);
     expect(hook.result.current.runner.stepIndex).toBe(1);
     expect(hook.result.current.cheering).toBe(true);
     expect(hook.result.current.speech.lines).toEqual(['Two arms!', 'Play with it.']);

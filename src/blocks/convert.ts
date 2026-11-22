@@ -9,6 +9,7 @@ import {
   SIGNAL_OPTIONS,
   modBlockType,
   numericModOf,
+  type BlockType,
 } from './blockTypes';
 import { STEP_COUNT } from './FieldStepGrid';
 
@@ -27,7 +28,13 @@ export const WARNINGS = {
   unknown: "I don't know this block",
   emptySound: 'Type a pattern here, like bd sd',
   emptyNotes: 'Type a pattern here, like c3 e3 g3',
+  typo: 'This pattern has a typo. Check the brackets and spaces.',
 } as const;
+
+/** The warnings for blocks whose pattern won't evaluate (found by playback, not conversion). */
+export function typoWarnings(blockIds: readonly string[]): ConvertWarning[] {
+  return blockIds.map((blockId) => ({ blockId, message: WARNINGS.typo }));
+}
 
 type BlockState = Blockly.serialization.blocks.State;
 
@@ -211,6 +218,23 @@ export function owningNodeId(ws: Blockly.Workspace, blockId: string): string | n
     block = block.getParent();
   }
   return null;
+}
+
+/**
+ * The program nodes a "glow these block types" highlight means, so their code spans can glow
+ * with the blocks. A wave block stands for the modifier it is plugged into.
+ */
+export function nodeIdsOfTypes(p: Program, types: readonly BlockType[]): string[] {
+  const wanted = new Set(types);
+  return p.layers.flatMap((l) => {
+    const ids = wanted.has(BT.layer) ? [l.id] : [];
+    if (wanted.has(sourceState(l.source).type)) ids.push(l.source.id);
+    for (const m of l.mods) {
+      const isWave = 'arg' in m && m.arg.kind === 'signal';
+      if (wanted.has(modifierState(m).type) || (isWave && wanted.has(BT.signal))) ids.push(m.id);
+    }
+    return ids;
+  });
 }
 
 /* ---------- Program → Workspace ---------- */

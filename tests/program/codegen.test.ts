@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { gridToMini, toCheckExpression, toStrudelCode } from '../../src/program/codegen';
+import {
+  gridToMini,
+  layerExpression,
+  toCheckExpression,
+  toStrudelCode,
+} from '../../src/program/codegen';
 import {
   bank,
   grid,
@@ -75,6 +80,19 @@ describe('toStrudelCode', () => {
     expect(code.slice(sourceSpan[0], sourceSpan[1])).toBe('note("c2 c2 eb2 c3")');
   });
 
+  it("spans each layer's $: line, so touching an arm glows it", () => {
+    const { kick, bass, prog } = sampleProgram();
+    const quiet = muted(layer(sound('hh*8')));
+    const { code, spans } = toStrudelCode({ ...prog, layers: [...prog.layers, quiet] });
+    const text = (id: string) => {
+      const span = spans[id] ?? [0, 0];
+      return code.slice(span[0], span[1]);
+    };
+    expect(text(kick.id)).toBe('$: s("[bd ~ ~ ~] [bd ~ ~ ~] [bd ~ ~ ~] [bd ~ ~ ~]")');
+    expect(text(bass.id)).toBe('$: note("c2 c2 eb2 c3")');
+    expect(text(quiet.id)).toBe('_$: s("hh*8")');
+  });
+
   it('escapes strings with JSON.stringify', () => {
     const { code } = toStrudelCode(program(null, layer(sound('a "b"'))));
     expect(code).toBe('$: s("a \\"b\\"")\n');
@@ -124,5 +142,14 @@ describe('toCheckExpression', () => {
 
   it('omits layers with whitespace-only minis', () => {
     expect(toCheckExpression(program(null, layer(sound('   '))))).toBe('silence');
+  });
+});
+
+describe('layerExpression', () => {
+  it("is one layer's chain, as it appears inside the check expression", () => {
+    const { bass } = sampleProgram();
+    expect(layerExpression(bass)).toBe(
+      'note("c2 c2 eb2 c3").s("sawtooth").lpf(sine.range(200, 2000).slow(4))',
+    );
   });
 });

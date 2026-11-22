@@ -2,8 +2,11 @@ import * as Blockly from 'blockly';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { BT, modBlockType, registerBlocks } from '../../src/blocks/blockTypes';
 import {
+  nodeIdsOfTypes,
   owningNodeId,
   programToWorkspaceState,
+  typoWarnings,
+  WARNINGS,
   workspaceToProgram,
 } from '../../src/blocks/convert';
 import { buildToolbox } from '../../src/blocks/toolbox';
@@ -377,5 +380,52 @@ describe('owningNodeId', () => {
     expect(owningNodeId(orphans, shadowId)).toBeNull();
     expect(owningNodeId(orphans, 's1')).toBe('s1');
     orphans.dispose();
+  });
+});
+
+describe('typoWarnings', () => {
+  it('puts the typo warning on each named block', () => {
+    expect(typoWarnings(['a', 'b'])).toEqual([
+      { blockId: 'a', message: WARNINGS.typo },
+      { blockId: 'b', message: WARNINGS.typo },
+    ]);
+    expect(typoWarnings([])).toEqual([]);
+  });
+});
+
+describe('nodeIdsOfTypes', () => {
+  const kickSource = grid('bd', [0, 4]);
+  const kickBank = bank('RolandTR909');
+  const kick = layer(kickSource, kickBank);
+  const bassSource = notes('c2 eb2');
+  const bassOsc = osc('sawtooth');
+  const cutoff = mod('lpf', signal('sine', 200, 2000, 4));
+  const resonance = mod('lpq', 12);
+  const ladder = ftype('ladder');
+  const bass = muted(layer(bassSource, bassOsc, cutoff, resonance, ladder));
+  const hats = layer(sound('hh*8'), mod('gain', 0.5));
+  const p = program(120, kick, bass, hats);
+
+  it('finds the program nodes a block-type highlight means', () => {
+    expect(nodeIdsOfTypes(p, [BT.layer])).toEqual([kick.id, bass.id, hats.id]);
+    expect(nodeIdsOfTypes(p, [BT.grid, BT.notes])).toEqual([kickSource.id, bassSource.id]);
+    expect(nodeIdsOfTypes(p, [modBlockType('lpf'), modBlockType('lpq')])).toEqual([
+      cutoff.id,
+      resonance.id,
+    ]);
+    expect(nodeIdsOfTypes(p, [BT.osc, BT.bank, BT.ftype])).toEqual([
+      kickBank.id,
+      bassOsc.id,
+      ladder.id,
+    ]);
+  });
+
+  it('points a wave block at the modifier it is plugged into', () => {
+    expect(nodeIdsOfTypes(p, [BT.signal])).toEqual([cutoff.id]);
+  });
+
+  it('is empty when nothing in the program matches', () => {
+    expect(nodeIdsOfTypes(p, [BT.tempo, modBlockType('room')])).toEqual([]);
+    expect(nodeIdsOfTypes(p, [])).toEqual([]);
   });
 });

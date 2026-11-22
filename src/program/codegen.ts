@@ -52,8 +52,11 @@ export function toStrudelCode(p: Program): Generated {
 
   p.layers.filter(isRenderable).forEach((l, index) => {
     if (index > 0 || p.bpm !== null) append('\n');
+    // The layer's span is its `$:` line: touching (or pointing at) an arm glows it.
+    const lineStart = code.length;
     append(l.muted ? '_$: ' : '$: ');
     append(sourceCall(l.source), l.source.id);
+    spans[l.id] = [lineStart, code.length];
     append('\n');
     for (const m of l.mods) {
       append('  ');
@@ -65,9 +68,12 @@ export function toStrudelCode(p: Program): Generated {
   return { code, spans };
 }
 
+/** One layer as a single expression: its source call with the modifiers chained on. */
+export function layerExpression(l: Layer): string {
+  return sourceCall(l.source) + l.mods.map(modCall).join('');
+}
+
 export function toCheckExpression(p: Program): string {
-  const layers = p.layers
-    .filter((l) => !l.muted && isRenderable(l))
-    .map((l) => sourceCall(l.source) + l.mods.map(modCall).join(''));
+  const layers = p.layers.filter((l) => !l.muted && isRenderable(l)).map(layerExpression);
   return layers.length === 0 ? 'silence' : `stack(${layers.join(', ')})`;
 }
