@@ -25,6 +25,8 @@ export const WARNINGS = {
   badNumber: 'This needs an ordinary number',
   noValue: 'Give me a number or a wave',
   unknown: "I don't know this block",
+  emptySound: 'Type a pattern here, like bd sd',
+  emptyNotes: 'Type a pattern here, like c3 e3 g3',
 } as const;
 
 type BlockState = Blockly.serialization.blocks.State;
@@ -140,6 +142,10 @@ function toLayer(
   if (source === null) {
     warn(first.id, WARNINGS.startWithSource);
     return null;
+  }
+  // Codegen drops a blank pattern; say so on the block rather than going silent.
+  if (source.kind !== 'grid' && source.mini.trim() === '') {
+    warn(first.id, source.kind === 'sound' ? WARNINGS.emptySound : WARNINGS.emptyNotes);
   }
   const mods: Modifier[] = [];
   for (const block of rest) {

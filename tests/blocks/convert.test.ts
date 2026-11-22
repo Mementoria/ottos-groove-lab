@@ -238,6 +238,16 @@ describe('workspaceToProgram: incomplete workspaces', () => {
     expect(p.layers.map((l) => [l.id, l.mods.length])).toEqual([['h1', 0]]);
   });
 
+  it.each([
+    [BT.sound, '', 'Type a pattern here, like bd sd'],
+    [BT.notes, '   ', 'Type a pattern here, like c3 e3 g3'],
+  ])('warns on a %s block whose pattern is %j, keeping the layer', (type, mini, message) => {
+    const ws = loadBlocks([hat('h1', 0, { type, id: 'src', fields: { MINI: mini } })]);
+    const { program: p, warnings } = workspaceToProgram(ws);
+    expect(warnings).toEqual([{ blockId: 'src', message }]);
+    expect(p.layers.map((l) => l.id)).toEqual(['h1']);
+  });
+
   it('orders layers by their position on the workspace, top to bottom', () => {
     const ws = loadBlocks([
       hat('lower', 500, { type: BT.sound, id: 's1' }),
