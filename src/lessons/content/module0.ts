@@ -43,9 +43,11 @@ const hello: Lesson = {
       check: { kind: 'playing' },
       hints: [
         {
-          say: 'The buttons on the stage, right below me, run the show. One of them is a little triangle.',
+          say: 'The round buttons under the wave, to my right, run the show. One of them is a little triangle.',
         },
-        { say: "It's the ▶ play button just under me. Press it and turn your speakers up a bit." },
+        {
+          say: "It's the ▶ play button just under the wave. Press it and turn your speakers up a bit.",
+        },
       ],
       solution: program(null, layer(sound('bd'))),
       success:
