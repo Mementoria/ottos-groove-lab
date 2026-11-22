@@ -191,6 +191,28 @@ export function workspaceToProgram(ws: Blockly.Workspace): {
   return { program: { bpm, layers }, warnings };
 }
 
+/** Every node id in the program: layers, sources and modifiers (the ids codegen spans use). */
+function nodeIds(p: Program): Set<string> {
+  return new Set(p.layers.flatMap((l) => [l.id, l.source.id, ...l.mods.map((m) => m.id)]));
+}
+
+/**
+ * The program node a touched block belongs to: the block itself if it's a layer, source or
+ * modifier the program uses; for a shadow or plugged-in value block (a modifier's number or
+ * wave), the node that owns its slot. Null for anything that isn't in the program (orphans,
+ * skipped blocks, the tempo block).
+ */
+export function owningNodeId(ws: Blockly.Workspace, blockId: string): string | null {
+  const nodes = nodeIds(workspaceToProgram(ws).program);
+  let block = ws.getBlockById(blockId);
+  while (block !== null) {
+    if (nodes.has(block.id)) return block.id;
+    if (!block.isShadow() && block.outputConnection === null) return null;
+    block = block.getParent();
+  }
+  return null;
+}
+
 /* ---------- Program → Workspace ---------- */
 
 // Layout, in workspace units: generous enough for Zelos block heights so stacks never overlap.

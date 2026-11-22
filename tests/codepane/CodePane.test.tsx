@@ -1,8 +1,10 @@
+import { tags } from '@lezer/highlight';
 import type { Fraction, Hap, Pattern } from '@strudel/core';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { EvalInfo } from '../../src/audio/engine';
 import { CodePane } from '../../src/codepane/CodePane';
+import { codeHighlightStyle } from '../../src/codepane/highlightStyle';
 import { highlightBus } from '../../src/otto/highlightBus';
 import { layer, program, sound } from '../../src/program/build';
 import { toStrudelCode, type Generated } from '../../src/program/codegen';
@@ -64,6 +66,20 @@ describe('CodePane', () => {
     );
     expect(editorText(container)).toContain('$: s(');
     expect(screen.queryByRole('button', { name: 'peek at the code' })).not.toBeInTheDocument();
+  });
+
+  it('colours the code: the mini-notation string gets the string highlight class', async () => {
+    const { generated } = kickGenerated();
+    const { container } = render(
+      <CodePane generated={generated} mode="readonly" evalInfo={null} cyclePosition={stopped} />,
+    );
+    const stringClass = codeHighlightStyle.style([tags.string]);
+    expect(stringClass).toBeTruthy();
+    await waitFor(() => {
+      const spans = [...container.querySelectorAll('.cm-content span')];
+      const mini = spans.find((span) => span.textContent === '"bd sd"');
+      expect(mini?.className).toContain(stringClass ?? '');
+    });
   });
 
   it('replaces the document when the generated code changes', () => {

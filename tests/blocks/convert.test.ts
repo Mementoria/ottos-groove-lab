@@ -1,7 +1,11 @@
 import * as Blockly from 'blockly';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { BT, modBlockType, registerBlocks } from '../../src/blocks/blockTypes';
-import { programToWorkspaceState, workspaceToProgram } from '../../src/blocks/convert';
+import {
+  owningNodeId,
+  programToWorkspaceState,
+  workspaceToProgram,
+} from '../../src/blocks/convert';
 import { buildToolbox } from '../../src/blocks/toolbox';
 import {
   bank,
@@ -325,5 +329,53 @@ describe('buildToolbox', () => {
     const toolbox = buildToolbox(all);
     const offered = toolbox.contents.flatMap((c) => c.contents.map((b) => b.type));
     expect([...offered].sort()).toEqual([...all].sort());
+  });
+});
+
+describe('owningNodeId', () => {
+  // A kick with a plain-number lpf and a gain driven by a signal block.
+  const kick = layer(sound('bd sd'), mod('lpf', 800), mod('gain', signal('sine', 0.2, 0.8, 2)));
+  const lpfId = kick.mods[0]?.id ?? '';
+  const gainId = kick.mods[1]?.id ?? '';
+  let ws: Blockly.Workspace;
+
+  beforeEach(() => {
+    ws = loadState(programToWorkspaceState(program(120, kick)));
+  });
+
+  afterEach(() => {
+    ws.dispose();
+  });
+
+  it("resolves a modifier's number shadow to the modifier", () => {
+    expect(owningNodeId(ws, `${lpfId}:value`)).toBe(lpfId);
+  });
+
+  it("resolves a signal block in a modifier's slot to the modifier", () => {
+    expect(owningNodeId(ws, `${gainId}:signal`)).toBe(gainId);
+  });
+
+  it('resolves layer, source and modifier blocks to themselves', () => {
+    expect(owningNodeId(ws, kick.id)).toBe(kick.id);
+    expect(owningNodeId(ws, kick.source.id)).toBe(kick.source.id);
+    expect(owningNodeId(ws, lpfId)).toBe(lpfId);
+  });
+
+  it('resolves the tempo block and an unknown id to null', () => {
+    expect(owningNodeId(ws, 'tempo')).toBeNull();
+    expect(owningNodeId(ws, 'nope')).toBeNull();
+  });
+
+  it('resolves an orphan, and the shadow inside it, to null', () => {
+    const orphans = loadBlocks([
+      hat('h1', 0, { type: BT.sound, id: 's1' }),
+      { ...numberMod('lpf', 'orphan', 800), x: 0, y: 400 },
+    ]);
+    const shadowId = orphans.getBlockById('orphan')?.getInputTargetBlock('VALUE')?.id ?? '';
+    expect(shadowId).not.toBe('');
+    expect(owningNodeId(orphans, 'orphan')).toBeNull();
+    expect(owningNodeId(orphans, shadowId)).toBeNull();
+    expect(owningNodeId(orphans, 's1')).toBe('s1');
+    orphans.dispose();
   });
 });

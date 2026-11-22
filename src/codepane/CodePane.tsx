@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { EvalInfo } from '../audio/engine';
 import { highlightBus, highlightTtl } from '../otto/highlightBus';
 import type { Generated } from '../program/codegen';
+import { codeHighlighting } from './highlightStyle';
 import './codePane.css';
 
 export type CodePaneMode = 'collapsed' | 'readonly';
@@ -112,6 +113,7 @@ function CodeView({ generated, evalInfo, cyclePosition }: Omit<CodePaneProps, 'm
           EditorState.readOnly.of(true),
           EditorView.lineWrapping,
           javascript(),
+          codeHighlighting,
           highlightExtension,
           glowField,
         ],

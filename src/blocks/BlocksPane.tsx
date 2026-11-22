@@ -1,9 +1,14 @@
 import * as Blockly from 'blockly';
 import { useEffect, useRef } from 'react';
-import { highlightBus, highlightTtl } from '../otto/highlightBus';
+import { highlightBus, highlightTtl, type Highlight } from '../otto/highlightBus';
 import type { Program } from '../program/types';
 import { registerBlocks, type BlockType } from './blockTypes';
-import { programToWorkspaceState, workspaceToProgram, type ConvertWarning } from './convert';
+import {
+  owningNodeId,
+  programToWorkspaceState,
+  workspaceToProgram,
+  type ConvertWarning,
+} from './convert';
 import { oglTheme } from './theme';
 import { buildToolbox } from './toolbox';
 
@@ -119,7 +124,19 @@ export function BlocksPane(props: BlocksPaneProps) {
         state: Blockly.serialization.workspaces.save(ws),
       });
     };
+    // Touching a block glows its code. The block itself needs no extra glow, so our own
+    // highlights are skipped by the subscriber below.
+    const ownHighlights = new WeakSet<Highlight>();
+    const onSelected = (event: Blockly.Events.Selected) => {
+      if (!event.newElementId) return;
+      const nodeId = owningNodeId(ws, event.newElementId);
+      if (nodeId === null) return;
+      const highlight: Highlight = { nodeIds: [nodeId] };
+      ownHighlights.add(highlight);
+      highlightBus.emit(highlight);
+    };
     const onWorkspaceChange = (event: Blockly.Events.Abstract) => {
+      if (event instanceof Blockly.Events.Selected) onSelected(event);
       if (event.isUiEvent || flushQueued) return;
       flushQueued = true;
       queueMicrotask(flush);
@@ -131,6 +148,7 @@ export function BlocksPane(props: BlocksPaneProps) {
     const lit = new Map<string, number>();
     const timers = new Set<ReturnType<typeof setTimeout>>();
     const unsubscribe = highlightBus.subscribe((h) => {
+      if (ownHighlights.has(h)) return;
       const types = new Set(h.blockTypes ?? []);
       const ids = new Set(h.nodeIds ?? []);
       const targets = ws
