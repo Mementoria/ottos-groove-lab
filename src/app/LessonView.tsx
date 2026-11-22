@@ -2,14 +2,13 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import type { AudioEngine, EngineStatus } from '../audio/engine';
 import { BlocksPane } from '../blocks/BlocksPane';
 import { CodePane } from '../codepane/CodePane';
-import type { Lesson, Step } from '../lessons/types';
-import type { BubbleProps } from '../otto/Bubble';
+import type { Lesson } from '../lessons/types';
 import { Stage } from '../stage/Stage';
 import { createOttoDrivers } from './ottoDrivers';
 import { copyCode, strudelUrl } from './share';
-import { useLessonSession, type LessonSession } from './useLessonSession';
+import { presentBubble } from './bubble';
+import { useLessonSession } from './useLessonSession';
 
-const OFFER_LINE = 'Want a hint?';
 const COPY_FEEDBACK_MS = 2000;
 
 export interface LessonViewProps {
@@ -32,41 +31,6 @@ function useEngineStatus(engine: AudioEngine): EngineStatus {
   return useSyncExternalStore(subscribe, getStatus);
 }
 
-interface Presentation {
-  key: string;
-  lines: string[];
-  actions?: BubbleProps['actions'];
-}
-
-/** What the bubble shows: an offer interrupts; otherwise the session's speech plus actions. */
-function present(
-  s: LessonSession,
-  step: Step | undefined,
-  nav: { onNext: () => void; onBack: () => void },
-): Presentation {
-  if (s.runner.completed) {
-    const back = { label: 'Back to map', onClick: nav.onBack };
-    return {
-      ...s.speech,
-      actions: s.hasNextLesson ? [{ label: 'Next lesson →', onClick: nav.onNext }, back] : [back],
-    };
-  }
-  if (s.runner.offer) {
-    return {
-      key: `${s.speech.key}:offer`,
-      lines: [OFFER_LINE],
-      actions: [
-        { label: 'Yes please', onClick: s.acceptOffer },
-        { label: 'Not yet', onClick: s.dismissOffer },
-      ],
-    };
-  }
-  if (step?.check.kind === 'manual') {
-    return { ...s.speech, actions: [{ label: 'Sounds right to me →', onClick: s.manualNext }] };
-  }
-  return s.speech;
-}
-
 /** Stage on top; blocks | code below, filling the viewport. Key it by lesson index. */
 export function LessonView({ engine, lessons, index, onBack, onNext }: LessonViewProps) {
   const session = useLessonSession(index, { engine, course: lessons });
@@ -77,6 +41,7 @@ export function LessonView({ engine, lessons, index, onBack, onNext }: LessonVie
   const analyser = useCallback(() => engine.analyser(), [engine]);
   const [doneKey, setDoneKey] = useState<string | null>(null);
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [peeking, setPeeking] = useState(false);
 
   useEffect(() => {
     if (copied === 'idle') return;
@@ -90,7 +55,7 @@ export function LessonView({ engine, lessons, index, onBack, onNext }: LessonVie
 
   const { lesson, runner, generated } = session;
   const step = lesson.steps[runner.stepIndex];
-  const bubble = present(session, step, { onNext, onBack });
+  const bubble = presentBubble(session, step, { onNext, onBack });
   const mood = session.cheering ? 'cheer' : doneKey === bubble.key ? 'idle' : 'talking';
 
   return (
@@ -129,12 +94,20 @@ export function LessonView({ engine, lessons, index, onBack, onNext }: LessonVie
         targetPlaying={session.targetPlaying}
         onToggleTarget={session.toggleTarget}
         engineError={status === 'error' ? 'The sounds could not load.' : null}
+        soundsLoading={status === 'loading'}
         onRetryAudio={() => {
           void engine.start();
         }}
       />
 
-      <div className="lesson-panes">
+      {/* Collapsed code gives its width to the blocks (BlocksPane resizes Blockly itself). */}
+      <div
+        className={
+          lesson.codePane === 'collapsed' && !peeking
+            ? 'lesson-panes is-code-collapsed'
+            : 'lesson-panes'
+        }
+      >
         <div className="lesson-blocks">
           <BlocksPane
             unlocked={session.unlocked}
@@ -173,6 +146,7 @@ export function LessonView({ engine, lessons, index, onBack, onNext }: LessonVie
           <CodePane
             generated={generated}
             mode={lesson.codePane}
+            onPeekingChange={setPeeking}
             evalInfo={session.evalInfo}
             cyclePosition={cyclePosition}
           />

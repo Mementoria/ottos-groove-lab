@@ -6,11 +6,12 @@ import type { AudioEngine } from '../src/audio/engine';
 import type { Lesson, Step } from '../src/lessons/types';
 import { layer, program, sound } from '../src/program/build';
 
-function fakeEngine(start: () => Promise<void> = () => Promise.resolve()): AudioEngine {
+function fakeEngine(wake: () => Promise<void> = () => Promise.resolve()): AudioEngine {
   return {
     status: () => 'ready',
     onStatus: () => () => {},
-    start,
+    start: () => Promise.resolve(),
+    wake,
     play: () => Promise.resolve(null),
     update: () => Promise.resolve(null),
     stop: () => {},
@@ -61,12 +62,12 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Click to wake Otto' })).toBeInTheDocument();
   });
 
-  it('starts audio on the wake click and opens the course map', async () => {
+  it('wakes audio on the click and opens the course map', async () => {
     const user = userEvent.setup();
-    const start = vi.fn(() => Promise.resolve());
-    render(<App engine={fakeEngine(start)} lessons={[]} />);
+    const wakeEngine = vi.fn(() => Promise.resolve());
+    render(<App engine={fakeEngine(wakeEngine)} lessons={[]} />);
     await wake(user);
-    expect(start).toHaveBeenCalledTimes(1);
+    expect(wakeEngine).toHaveBeenCalledTimes(1);
     expect(await screen.findByText('Lessons coming soon')).toBeInTheDocument();
   });
 

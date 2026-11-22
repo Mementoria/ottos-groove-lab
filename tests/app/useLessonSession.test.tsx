@@ -44,6 +44,8 @@ interface FakeEngine extends AudioEngine {
   stop: ReturnType<typeof vi.fn<() => void>>;
 }
 
+const evaluated: EvalInfo = { pattern: {} as EvalInfo['pattern'], miniLocations: [] };
+
 /** Mirrors the real engine: play marks it playing only after its evaluation resolves. */
 function fakeEngine(): FakeEngine & { setPlayDelay: (d: Deferred<null>) => void } {
   let playing = false;
@@ -52,13 +54,14 @@ function fakeEngine(): FakeEngine & { setPlayDelay: (d: Deferred<null>) => void 
     status: () => 'ready' as const,
     onStatus: () => () => {},
     start: () => Promise.resolve(),
-    play: vi.fn(async (code: string) => {
+    wake: () => Promise.resolve(),
+    play: vi.fn(async (code: string): Promise<EvalInfo | null> => {
       const delay = playDelay;
       playDelay = null;
       if (delay) await delay.promise;
       if (code.trim() === '') return null;
       playing = true;
-      return null;
+      return evaluated;
     }),
     update: vi.fn<(code: string) => Promise<EvalInfo | null>>(() => Promise.resolve(null)),
     stop: vi.fn(() => {
@@ -335,7 +338,8 @@ describe('useLessonSession: steps, hints and success', () => {
       hook.result.current.requestHint();
     });
     expect(hook.result.current.currentHintText).toBe('Grab another arm block.');
-    expect(seen).toEqual([{ blockTypes: ['ogl_layer'] }]);
+    // Long enough to follow the pointer; content may still set its own ttl.
+    expect(seen).toStrictEqual([{ ttlMs: 6000, blockTypes: ['ogl_layer'] }]);
 
     act(() => {
       hook.result.current.requestHint();
@@ -471,6 +475,34 @@ describe('useLessonSession: hear the goal', () => {
     // The learner wasn't playing, so the goal stops and their code is loaded but silent.
     expect(engine.isPlaying()).toBe(false);
     expect(engine.update).toHaveBeenLastCalledWith(toStrudelCode(edited).code);
+    expect(hook.result.current.playing).toBe(false);
+  });
+
+  it('Play while the goal is on returns to the learner’s program', async () => {
+    const { engine, hook } = setup();
+    act(() => {
+      hook.result.current.toggleTarget();
+    });
+    act(() => {
+      hook.result.current.play();
+    });
+    expect(hook.result.current.targetPlaying).toBe(false);
+    await flush();
+    // Queued behind the goal's in-flight evaluation, then played.
+    expect(engine.play).toHaveBeenLastCalledWith(toStrudelCode(START).code);
+    expect(engine.isPlaying()).toBe(true);
+  });
+
+  it('drops the goal state when the goal fails to evaluate', async () => {
+    const engine = fakeEngine();
+    engine.play.mockImplementationOnce(() => Promise.resolve(null));
+    const { hook } = setup({ engine });
+    act(() => {
+      hook.result.current.toggleTarget();
+    });
+    expect(hook.result.current.targetPlaying).toBe(true);
+    await flush();
+    expect(hook.result.current.targetPlaying).toBe(false);
     expect(hook.result.current.playing).toBe(false);
   });
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CourseMap } from './app/CourseMap';
 import { LessonView } from './app/LessonView';
 import { StartScreen } from './app/StartScreen';
+import { wakeWithin } from './app/wake';
 import { createEngine, type AudioEngine } from './audio/engine';
 import { course } from './lessons/content';
 import type { Lesson } from './lessons/types';
@@ -29,16 +30,11 @@ export function App({ engine: injected, lessons = course }: AppProps) {
           waking={screen.waking}
           onWake={() => {
             setScreen({ name: 'start', waking: true });
-            // Called inside the click: browsers only let audio start from a user gesture. A
-            // failure still moves on; the lesson stage shows the error with a Retry.
-            void engine
-              .start()
-              .catch((error: unknown) => {
-                console.warn('Audio could not start.', error);
-              })
-              .finally(() => {
-                setScreen({ name: 'map' });
-              });
+            // Inside the click: browsers only let audio start from a user gesture. Sounds keep
+            // loading after this resolves; the lesson stage shows their status (and any error).
+            void wakeWithin(engine).then(() => {
+              setScreen({ name: 'map' });
+            });
           }}
         />
       );

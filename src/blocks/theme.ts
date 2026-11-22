@@ -39,6 +39,8 @@ export function oglTheme(): Blockly.Theme {
     componentStyles: {
       workspaceBackgroundColour: '#f7f4ee',
       toolboxBackgroundColour: '#ffffff',
+      // Explicit, so labels never inherit a page colour (#2b2b2b on white is about 14:1).
+      toolboxForegroundColour: '#2b2b2b',
       flyoutBackgroundColour: '#efeae0',
       flyoutOpacity: 1,
       scrollbarColour: '#c9c1b3',

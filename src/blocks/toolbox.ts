@@ -62,3 +62,12 @@ export function buildToolbox(unlocked: readonly BlockType[]): Toolbox {
   })).filter((category) => category.contents.length > 0);
   return { kind: 'categoryToolbox', contents };
 }
+
+/** The palette category holding the first of `types` that has one (for "look here" hints). */
+export function categoryOfTypes(types: readonly BlockType[]): Category | null {
+  for (const type of types) {
+    const entry = BLOCK_CATEGORIES.find(([t]) => t === type);
+    if (entry) return entry[1];
+  }
+  return null;
+}

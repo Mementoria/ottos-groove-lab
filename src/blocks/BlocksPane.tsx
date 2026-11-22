@@ -9,8 +9,9 @@ import {
   workspaceToProgram,
   type ConvertWarning,
 } from './convert';
-import { oglTheme } from './theme';
-import { buildToolbox } from './toolbox';
+import { oglTheme, type Category } from './theme';
+import { buildToolbox, categoryOfTypes } from './toolbox';
+import './blocksPane.css';
 
 /** What the workspace starts with: a Program, saved Blockly JSON, or nothing. */
 export type BlocksPaneInitial =
@@ -79,6 +80,52 @@ function applyWarnings(
 }
 
 const toolboxKey = (unlocked: readonly BlockType[]) => unlocked.join(' ');
+
+const PULSE_CLASS = 'ogl-hint-pulse';
+
+/**
+ * "Look here" in the palette: opens the category so its flyout shows the hinted blocks, glows
+ * them there, and pulses the category row. Returns an undo for when the highlight expires,
+ * which also closes the flyout again if the hint opened it and it is still showing.
+ */
+function pointAtPalette(
+  ws: Blockly.WorkspaceSvg,
+  category: Category,
+  types: ReadonlySet<string>,
+): (() => void) | null {
+  const toolbox = ws.getToolbox();
+  if (!(toolbox instanceof Blockly.Toolbox)) return null;
+  const item = toolbox
+    .getToolboxItems()
+    .find(
+      (candidate): candidate is Blockly.ToolboxCategory =>
+        candidate instanceof Blockly.ToolboxCategory && candidate.getName() === category,
+    );
+  if (!item) return null;
+  // Selecting the already-selected category would close it.
+  const opened = toolbox.getSelectedItem() !== item;
+  if (opened) toolbox.setSelectedItem(item);
+
+  const container = item.getDiv();
+  container?.classList.add(PULSE_CLASS);
+
+  // The flyout fills after selection settles, so glow its blocks once that has happened.
+  const flyoutWs = toolbox.getFlyout()?.getWorkspace();
+  let shown: Blockly.BlockSvg[] = [];
+  const settle = setTimeout(() => {
+    shown = (flyoutWs?.getAllBlocks(false) ?? []).filter((b) => types.has(b.type));
+    for (const block of shown) flyoutWs?.highlightBlock(block.id, true);
+  }, 0);
+
+  return () => {
+    clearTimeout(settle);
+    container?.classList.remove(PULSE_CLASS);
+    // The flyout may have been refilled since; skip blocks it has disposed of.
+    for (const block of shown) if (!block.isDisposed()) flyoutWs?.highlightBlock(block.id, false);
+    // Close what the hint opened, unless the learner has moved on to another category.
+    if (opened && toolbox.getSelectedItem() === item) toolbox.clearSelection();
+  };
+}
 
 /** The Blockly workspace. Reports every (non-UI) change as a Program plus warnings and state. */
 export function BlocksPane(props: BlocksPaneProps) {
@@ -155,6 +202,15 @@ export function BlocksPane(props: BlocksPaneProps) {
         .getAllBlocks(false)
         .filter((block) => types.has(block.type) || ids.has(block.id))
         .map((block) => block.id);
+      const category = categoryOfTypes(h.blockTypes ?? []);
+      const undoPalette = category === null ? null : pointAtPalette(ws, category, types);
+      if (undoPalette) {
+        const timer = setTimeout(() => {
+          timers.delete(timer);
+          undoPalette();
+        }, highlightTtl(h));
+        timers.add(timer);
+      }
       if (targets.length === 0) return;
       for (const id of targets) {
         lit.set(id, (lit.get(id) ?? 0) + 1);

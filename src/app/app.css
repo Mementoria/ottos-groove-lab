@@ -7,8 +7,15 @@ body,
 body {
   margin: 0;
   background: #0b1320;
-  color: #e6edf7;
   font-family: system-ui, sans-serif;
+}
+
+/* Light text only on the dark screens: Blockly's toolbox and widgets (appended to <body>)
+   inherit colour, so the page itself must not set a light one. */
+.start,
+.map,
+.lesson-bar {
+  color: #e6edf7;
 }
 
 /* Shared buttons */
@@ -271,4 +278,26 @@ body {
 
 .lesson-code .app-btn:hover:not(:disabled) {
   background: #efe9dd;
+}
+
+/* Collapsed code: a slim strip beside the blocks until the learner peeks. */
+.lesson-panes.is-code-collapsed {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.is-code-collapsed .lesson-code {
+  width: 150px;
+}
+
+.is-code-collapsed .lesson-code-header {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.is-code-collapsed .lesson-code-header .app-btn {
+  justify-content: center;
+}
+
+.is-code-collapsed .lesson-code-title {
+  margin-right: 0;
 }

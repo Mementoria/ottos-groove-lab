@@ -22,6 +22,8 @@ export interface StageProps {
   targetPlaying: boolean;
   onToggleTarget: () => void;
   engineError: string | null;
+  /** Audio is unlocked but samples and soundfonts are still arriving. */
+  soundsLoading: boolean;
   onRetryAudio: () => void;
 }
 
@@ -43,6 +45,7 @@ export function Stage({
   targetPlaying,
   onToggleTarget,
   engineError,
+  soundsLoading,
   onRetryAudio,
 }: StageProps) {
   const [spectrum, setSpectrum] = useState(false);
@@ -114,6 +117,11 @@ export function Stage({
             >
               {mode === 'scope' ? 'Spectrum' : 'Scope'}
             </button>
+          )}
+          {soundsLoading && (
+            <span className="stage-loading" role="status">
+              Loading sounds…
+            </span>
           )}
         </div>
       </div>

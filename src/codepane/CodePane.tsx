@@ -20,6 +20,8 @@ export interface CodePaneProps {
   mode: CodePaneMode;
   evalInfo: EvalInfo | null;
   cyclePosition: () => number;
+  /** Told when the learner opens or closes the collapsed code ("peek"). */
+  onPeekingChange?: (open: boolean) => void;
 }
 
 /** How far back (in cycles) each frame looks for sounding haps. */
@@ -69,7 +71,13 @@ function glowMark(ttlMs: number): Decoration {
 /* ---------- component ---------- */
 
 /** The generated Strudel code: hidden behind a "peek" toggle, or always shown read-only. */
-export function CodePane({ generated, mode, evalInfo, cyclePosition }: CodePaneProps) {
+export function CodePane({
+  generated,
+  mode,
+  evalInfo,
+  cyclePosition,
+  onPeekingChange,
+}: CodePaneProps) {
   const [peeking, setPeeking] = useState(false);
   const showCode = mode === 'readonly' || peeking;
   return (
@@ -80,7 +88,8 @@ export function CodePane({ generated, mode, evalInfo, cyclePosition }: CodePaneP
           className="ogl-codepane-toggle"
           aria-expanded={peeking}
           onClick={() => {
-            setPeeking((open) => !open);
+            setPeeking(!peeking);
+            onPeekingChange?.(!peeking);
           }}
         >
           {peeking ? 'hide the code' : 'peek at the code'}
@@ -93,7 +102,11 @@ export function CodePane({ generated, mode, evalInfo, cyclePosition }: CodePaneP
   );
 }
 
-function CodeView({ generated, evalInfo, cyclePosition }: Omit<CodePaneProps, 'mode'>) {
+function CodeView({
+  generated,
+  evalInfo,
+  cyclePosition,
+}: Omit<CodePaneProps, 'mode' | 'onPeekingChange'>) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const spansRef = useRef(generated.spans);

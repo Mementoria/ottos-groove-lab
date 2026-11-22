@@ -14,6 +14,8 @@ import { loadState, saveState, type SavedState } from './storage';
 export const DEFAULT_DEBOUNCE_MS = 400;
 const TICK_MS = 1000;
 const CHEER_MS = 1800;
+/** How long a rung-2 "point" glows unless the content sets its own ttl. */
+export const HINT_HIGHLIGHT_MS = 6000;
 
 export const SHOW_ME_LINE = 'Here, let me show you.';
 const DISMISS_LINE = 'No problem. The 💡 is there whenever you want it.';
@@ -314,11 +316,15 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
   let sentCode: string | null = null;
   /** Whether the learner was playing when "hear the goal" took over. */
   let learnerWasPlaying = false;
+  /** The goal's code while it is on. */
+  let targetCode: string | null = null;
   /** The program the current step began with, for the success glow. */
   let baseline: Program | null = startProgram;
 
   const playback = createPlayback(engine, (code, info) => {
     if (!attached) return;
+    // A goal that won't evaluate hands back to the learner rather than claiming to play.
+    if (state.targetPlaying && code === targetCode && info === null) returnToLearner();
     set({ evaluated: { code, info } });
     // `playing` may have just turned true, which a check can depend on.
     if (!state.targetPlaying) check();
@@ -398,6 +404,7 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
 
   function returnToLearner(): void {
     if (!state.targetPlaying) return;
+    targetCode = null;
     if (!learnerWasPlaying) playback.stop();
     sentCode = state.generated.code;
     playback.update(sentCode);
@@ -454,7 +461,8 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
     const text = hintText(step, level);
     if (!step || text === null) return;
     state = { ...state, speech: speech([text]) };
-    if (level === 2 && step.hints[1].highlight) highlightBus.emit(step.hints[1].highlight);
+    const point = step.hints[1].highlight;
+    if (level === 2 && point) highlightBus.emit({ ttlMs: HINT_HIGHLIGHT_MS, ...point });
     if (level === 3) requestLoad(step.solution);
   }
 
@@ -470,12 +478,17 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
       schedule();
     },
     play() {
+      // Play always means the learner's program, even while the goal is on (or loading).
+      const wasTarget = state.targetPlaying;
+      targetCode = null;
       if (state.generated.code.trim() === '') {
-        set({ speech: speech([NOTHING_TO_PLAY_LINE]) });
+        if (wasTarget) playback.stop();
+        set({ targetPlaying: false, speech: speech([NOTHING_TO_PLAY_LINE]) });
         return;
       }
       sentCode = state.generated.code;
       playback.play(sentCode);
+      set({ targetPlaying: false });
     },
     stop() {
       playback.stop();
@@ -489,7 +502,8 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
       const target = currentStep()?.target;
       if (!target || state.runner.completed) return;
       learnerWasPlaying = playback.wantsPlaying();
-      sentCode = toStrudelCode(target).code;
+      targetCode = toStrudelCode(target).code;
+      sentCode = targetCode;
       playback.play(sentCode);
       set({ targetPlaying: true });
     },

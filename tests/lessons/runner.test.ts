@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { FAILS_BEFORE_OFFER, IDLE_MS, initRunner, reduce } from '../../src/lessons/runner';
+import {
+  allowsManualNext,
+  FAILS_BEFORE_OFFER,
+  IDLE_MS,
+  initRunner,
+  reduce,
+} from '../../src/lessons/runner';
 import type { RunnerState } from '../../src/lessons/runner';
 import type { Lesson, Step } from '../../src/lessons/types';
 import { layer, program, sound } from '../../src/program/build';
@@ -86,9 +92,27 @@ describe('manualNext', () => {
     expect(next.idleSince).toBe(3_000);
   });
 
-  it('is ignored on a non-manual step', () => {
+  it('is ignored on a guided step with an automatic check', () => {
     const s = at({});
     expect(reduce(lesson, s, { type: 'manualNext', now: 3_000 })).toBe(s);
+  });
+
+  it('advances an open step even when it has an automatic check', () => {
+    const open: Lesson = { ...lesson, steps: [{ ...step('o', 'playing'), type: 'open' }] };
+    const viaButton = reduce(open, at({}), { type: 'manualNext', now: 3_000 });
+    expect(viaButton.completed).toBe(true);
+    const viaCheck = reduce(open, at({}), { type: 'checked', pass: true, now: 3_000 });
+    expect(viaCheck.completed).toBe(true);
+  });
+});
+
+describe('allowsManualNext', () => {
+  it('is true for open steps and manual checks, false otherwise', () => {
+    expect(allowsManualNext({ ...step('o', 'playing'), type: 'open' })).toBe(true);
+    expect(allowsManualNext(step('m', 'manual'))).toBe(true);
+    expect(allowsManualNext(step('g', 'playing'))).toBe(false);
+    expect(allowsManualNext({ ...step('p', 'playing'), type: 'puzzle' })).toBe(false);
+    expect(allowsManualNext(undefined)).toBe(false);
   });
 });
 

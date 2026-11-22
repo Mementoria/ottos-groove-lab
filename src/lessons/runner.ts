@@ -1,4 +1,4 @@
-import type { Lesson } from './types';
+import type { Lesson, Step } from './types';
 
 export interface RunnerState {
   stepIndex: number;
@@ -41,6 +41,11 @@ function advance(lesson: Lesson, s: RunnerState, now: number): RunnerState {
 
 const NEXT_LEVEL = [1, 2, 3, 3] as const;
 
+/** Open steps (and manual checks) can be finished with "Sounds right to me →". */
+export function allowsManualNext(step: Step | undefined): boolean {
+  return step !== undefined && (step.type === 'open' || step.check.kind === 'manual');
+}
+
 export function reduce(lesson: Lesson, s: RunnerState, e: RunnerEvent): RunnerState {
   if (s.completed) return s;
   const step = lesson.steps[s.stepIndex];
@@ -50,7 +55,7 @@ export function reduce(lesson: Lesson, s: RunnerState, e: RunnerEvent): RunnerSt
       if (e.pass) return isManual ? s : advance(lesson, s, e.now);
       return { ...s, failedChecks: s.failedChecks + 1 };
     case 'manualNext':
-      return isManual ? advance(lesson, s, e.now) : s;
+      return allowsManualNext(step) ? advance(lesson, s, e.now) : s;
     case 'tick': {
       if (s.hintLevel >= 3 || s.offer) return s;
       const due = e.now - s.idleSince >= IDLE_MS || s.failedChecks >= FAILS_BEFORE_OFFER;

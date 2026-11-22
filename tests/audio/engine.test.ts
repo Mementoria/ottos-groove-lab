@@ -16,6 +16,7 @@ interface Fake {
   backend: StrudelBackend;
   calls: string[];
   context: FakeContext;
+  unlock: ReturnType<typeof vi.fn<() => Promise<void>>>;
   init: ReturnType<typeof vi.fn<() => Promise<void>>>;
   evaluate: ReturnType<typeof vi.fn<(code: string, autoplay: boolean) => Promise<EvalInfo | null>>>;
 }
@@ -34,6 +35,10 @@ function makeFake(): Fake {
     }),
     createAnalyser: () => analyserNode,
   };
+  const unlock = vi.fn(() => {
+    calls.push('unlock');
+    return Promise.resolve();
+  });
   const init = vi.fn(() => {
     calls.push('init');
     return Promise.resolve();
@@ -43,6 +48,7 @@ function makeFake(): Fake {
     return Promise.resolve<EvalInfo | null>(info);
   });
   const backend: StrudelBackend = {
+    unlock,
     init,
     evaluate,
     stop: () => {
@@ -52,7 +58,7 @@ function makeFake(): Fake {
     audioContext: () => context as unknown as AudioContext,
     outputNode: () => ({ connect: vi.fn() }) as unknown as AudioNode,
   };
-  return { backend, calls, context, init, evaluate };
+  return { backend, calls, context, unlock, init, evaluate };
 }
 
 describe('createEngine', () => {
@@ -61,7 +67,7 @@ describe('createEngine', () => {
     const engine = createEngine(fake.backend);
     expect(engine.status()).toBe('idle');
     const result = await engine.play('s("bd")');
-    expect(fake.calls).toEqual(['init', 'evaluate:s("bd"):true']);
+    expect(fake.calls).toEqual(['unlock', 'init', 'evaluate:s("bd"):true']);
     expect(result).toBe(info);
     expect(engine.status()).toBe('ready');
     expect(engine.isPlaying()).toBe(true);
@@ -80,6 +86,10 @@ describe('createEngine', () => {
     const first = engine.play('a');
     const second = engine.play('b');
     expect(engine.status()).toBe('loading');
+    // init starts once audio is unlocked.
+    await vi.waitFor(() => {
+      expect(fake.init).toHaveBeenCalled();
+    });
     finish();
     await Promise.all([first, second]);
     expect(fake.init).toHaveBeenCalledTimes(1);
@@ -91,7 +101,7 @@ describe('createEngine', () => {
     fake.context.state = 'suspended';
     const engine = createEngine(fake.backend);
     await engine.play('s("bd")');
-    expect(fake.calls).toEqual(['init', 'resume', 'evaluate:s("bd"):true']);
+    expect(fake.calls).toEqual(['unlock', 'init', 'resume', 'evaluate:s("bd"):true']);
   });
 
   it('reports an init failure, plays nothing, and retries on a later start', async () => {
@@ -157,5 +167,45 @@ describe('createEngine', () => {
     expect(engine.analyser()).not.toBeNull();
     engine.stop();
     expect(engine.cyclePosition()).toBe(0);
+  });
+});
+
+describe('wake', () => {
+  it('resolves once audio is unlocked, while the sounds keep loading', async () => {
+    const fake = makeFake();
+    let finish: () => void = () => undefined;
+    fake.init.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const engine = createEngine(fake.backend);
+    await engine.wake();
+    expect(fake.unlock).toHaveBeenCalledTimes(1);
+    expect(engine.status()).toBe('loading');
+
+    finish();
+    await engine.start();
+    expect(engine.status()).toBe('ready');
+    expect(fake.init).toHaveBeenCalledTimes(1);
+  });
+
+  it('never rejects: a failed unlock is reported as the error status', async () => {
+    const fake = makeFake();
+    fake.unlock.mockRejectedValueOnce(new Error('no audio'));
+    const engine = createEngine(fake.backend);
+    await expect(engine.wake()).resolves.toBeUndefined();
+    expect(engine.status()).toBe('error');
+    expect(fake.init).not.toHaveBeenCalled();
+  });
+
+  it('resolves at once when already ready', async () => {
+    const fake = makeFake();
+    const engine = createEngine(fake.backend);
+    await engine.start();
+    await engine.wake();
+    expect(fake.unlock).toHaveBeenCalledTimes(1);
+    expect(engine.status()).toBe('ready');
   });
 });

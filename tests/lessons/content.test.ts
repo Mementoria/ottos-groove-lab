@@ -68,6 +68,36 @@ function programsOf(step: Step): [string, Program][] {
   return named.filter((entry): entry is [string, Program] => entry[1] !== undefined);
 }
 
+/**
+ * Steps that must not pass on entry: puzzles, and guided steps with an automatic check other
+ * than "playing" (one that passed at once would auto-complete and swallow its intro).
+ */
+function mustFailAtStart(step: Step): boolean {
+  if (step.type === 'puzzle') return true;
+  return step.type === 'guided' && step.check.kind !== 'playing' && step.check.kind !== 'manual';
+}
+
+describe('mustFailAtStart', () => {
+  const base: Step = {
+    id: 'x',
+    label: 'x',
+    type: 'guided',
+    say: [],
+    check: { kind: 'layers', min: 1 },
+    hints: [{ say: 'a' }, { say: 'b' }],
+    solution: EMPTY,
+    success: 'ok',
+  };
+
+  it('covers puzzles and guided steps with an automatic, non-playing check', () => {
+    expect(mustFailAtStart({ ...base, type: 'puzzle' })).toBe(true);
+    expect(mustFailAtStart(base)).toBe(true);
+    expect(mustFailAtStart({ ...base, check: { kind: 'playing' } })).toBe(false);
+    expect(mustFailAtStart({ ...base, check: { kind: 'manual' } })).toBe(false);
+    expect(mustFailAtStart({ ...base, type: 'open' })).toBe(false);
+  });
+});
+
 describe('content harness', () => {
   it('has unique step ids across the course', () => {
     const ids = course.flatMap((l) => l.steps.map((s) => s.id));
@@ -102,8 +132,8 @@ describe('content harness', () => {
             expect(result.pass, result.reason).toBe(true);
           });
 
-          it('puzzle start fails its check', async () => {
-            if (step.type !== 'puzzle') return;
+          it('start fails its check (puzzles, and guided steps a learner must act on)', async () => {
+            if (!mustFailAtStart(step)) return;
             const ctx = await buildContext(effectiveStart, true);
             expect(runCheck(step.check, ctx).pass).toBe(false);
           });
@@ -117,7 +147,9 @@ describe('content harness', () => {
 
           it('hint highlights use only unlocked blocks', () => {
             for (const hint of step.hints) {
-              const locked = (hint.highlight?.blockTypes ?? []).filter((t) => !unlocked.includes(t));
+              const locked = (hint.highlight?.blockTypes ?? []).filter(
+                (t) => !unlocked.includes(t),
+              );
               expect(locked).toEqual([]);
             }
           });

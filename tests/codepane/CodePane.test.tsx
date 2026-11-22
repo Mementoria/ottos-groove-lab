@@ -59,6 +59,23 @@ describe('CodePane', () => {
     expect(editorText(container)).toContain('$: s(');
   });
 
+  it('reports peeking changes', async () => {
+    const { generated } = kickGenerated();
+    const onPeekingChange = vi.fn();
+    render(
+      <CodePane
+        generated={generated}
+        mode="collapsed"
+        evalInfo={null}
+        cyclePosition={stopped}
+        onPeekingChange={onPeekingChange}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'peek at the code' }));
+    await userEvent.click(screen.getByRole('button', { name: 'hide the code' }));
+    expect(onPeekingChange.mock.calls).toEqual([[true], [false]]);
+  });
+
   it('shows the code in readonly mode', () => {
     const { generated } = kickGenerated();
     const { container } = render(

@@ -13,6 +13,11 @@ export interface AudioEngine {
   onStatus(cb: (s: EngineStatus, error?: Error) => void): () => void;
   /** Call from a user gesture. Idempotent; resumes a suspended context; retries after an error. */
   start(): Promise<void>;
+  /**
+   * Call from a user gesture. Starts everything `start` does, but resolves as soon as audio is
+   * unlocked, while the sounds keep loading (watch `status`). Never rejects.
+   */
+  wake(): Promise<void>;
   /** Starts audio if needed, then evaluates and plays. Resolves null on empty code or failure. */
   play(code: string): Promise<EvalInfo | null>;
   /** Re-evaluates; plays only if already playing. */
@@ -25,6 +30,9 @@ export interface AudioEngine {
 
 /** A seam for tests; the real one wraps @strudel/web. */
 export interface StrudelBackend {
+  /** Fast: loads the audio module and resumes its context (needs the user gesture). */
+  unlock(): Promise<void>;
+  /** Slow: worklets, samples and soundfonts. Called after `unlock`. */
   init(): Promise<void>;
   evaluate(code: string, autoplay: boolean): Promise<EvalInfo | null>;
   stop(): void;
@@ -40,6 +48,8 @@ function toError(reason: unknown): Error {
 export function createEngine(backend: StrudelBackend = createStrudelBackend()): AudioEngine {
   let status: EngineStatus = 'idle';
   let initPromise: Promise<void> | null = null;
+  /** Settles once the current init attempt has unlocked audio (or failed to). */
+  let unlocked: Promise<void> = Promise.resolve();
   let playing = false;
   let analyserNode: AnalyserNode | null = null;
   let connectedTo: AudioNode | null = null;
@@ -54,16 +64,20 @@ export function createEngine(backend: StrudelBackend = createStrudelBackend()): 
     if (status === 'ready') return Promise.resolve();
     if (initPromise) return initPromise;
     setStatus('loading');
-    initPromise = backend.init().then(
-      () => {
-        initPromise = null;
-        setStatus('ready');
-      },
-      (reason: unknown) => {
-        initPromise = null;
-        setStatus('error', toError(reason));
-      },
-    );
+    const unlocking = backend.unlock();
+    unlocked = unlocking.catch(() => undefined);
+    initPromise = unlocking
+      .then(() => backend.init())
+      .then(
+        () => {
+          initPromise = null;
+          setStatus('ready');
+        },
+        (reason: unknown) => {
+          initPromise = null;
+          setStatus('error', toError(reason));
+        },
+      );
     return initPromise;
   }
 
@@ -84,6 +98,13 @@ export function createEngine(backend: StrudelBackend = createStrudelBackend()): 
     const context = backend.audioContext();
     if (context.state === 'suspended') await context.resume();
     connectAnalyser();
+  }
+
+  async function wake(): Promise<void> {
+    const starting = start().catch((reason: unknown) => {
+      console.warn('Audio could not start.', reason);
+    });
+    await Promise.race([unlocked, starting]);
   }
 
   function silence(): null {
@@ -121,6 +142,7 @@ export function createEngine(backend: StrudelBackend = createStrudelBackend()): 
       };
     },
     start,
+    wake,
     play,
     update,
     stop,
@@ -141,12 +163,21 @@ export function createStrudelBackend(): StrudelBackend {
     return { web, repl };
   }
 
+  let pendingWeb: Promise<typeof StrudelWeb> | null = null;
+  // Shared by unlock and init; a failed import is forgotten so Retry can try again.
+  const loadWeb = (): Promise<typeof StrudelWeb> =>
+    (pendingWeb ??= import('@strudel/web').catch((reason: unknown) => {
+      pendingWeb = null;
+      throw reason;
+    }));
+
   return {
+    async unlock() {
+      const webModule = await loadWeb();
+      await webModule.getAudioContext().resume();
+    },
     async init() {
-      const [webModule, soundfonts] = await Promise.all([
-        import('@strudel/web'),
-        import('@strudel/soundfonts'),
-      ]);
+      const [webModule, soundfonts] = await Promise.all([loadWeb(), import('@strudel/soundfonts')]);
       await webModule.initAudio();
       repl = await webModule.initStrudel({
         prebake: async () => {

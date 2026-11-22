@@ -19,6 +19,7 @@ function makeProps(overrides: Partial<StageProps> = {}): StageProps {
     targetPlaying: false,
     onToggleTarget: () => {},
     engineError: null,
+    soundsLoading: false,
     onRetryAudio: () => {},
     ...overrides,
   };
@@ -107,5 +108,12 @@ describe('Stage', () => {
     expect(onDone).toHaveBeenCalledTimes(1);
     rerender(<Stage {...makeProps({ bubble, bubbleKey: 'b' })} />);
     expect(onDone).toHaveBeenCalledTimes(2);
+  });
+
+  it('says when the sounds are still loading', () => {
+    const { rerender } = render(<Stage {...makeProps()} />);
+    expect(screen.queryByText('Loading sounds…')).not.toBeInTheDocument();
+    rerender(<Stage {...makeProps({ soundsLoading: true })} />);
+    expect(screen.getByText('Loading sounds…')).toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import { createOttoDrivers } from '../../src/app/ottoDrivers';
+import { createOttoDrivers, levelFromRms } from '../../src/app/ottoDrivers';
 import type { AudioEngine } from '../../src/audio/engine';
 
 function engineWith(opts: { playing: boolean; cycle?: number; analyser?: AnalyserNode | null }) {
@@ -6,6 +6,7 @@ function engineWith(opts: { playing: boolean; cycle?: number; analyser?: Analyse
     status: () => 'ready',
     onStatus: () => () => {},
     start: () => Promise.resolve(),
+    wake: () => Promise.resolve(),
     play: () => Promise.resolve(null),
     update: () => Promise.resolve(null),
     stop: () => {},
@@ -40,10 +41,17 @@ describe('createOttoDrivers', () => {
     expect(drivers.beatPhase()).toBeCloseTo(0.5);
   });
 
-  it('measures RMS loudness while playing, reusing one buffer', () => {
-    const { node, buffers } = fakeAnalyser(0.5);
+  it('boosts typical loudness so Otto visibly moves, clamped to 1', () => {
+    expect(levelFromRms(0)).toBe(0);
+    expect(levelFromRms(0.08)).toBeCloseTo(0.32);
+    expect(levelFromRms(0.2)).toBeCloseTo(0.8);
+    expect(levelFromRms(0.5)).toBe(1);
+  });
+
+  it('measures boosted RMS loudness while playing, reusing one buffer', () => {
+    const { node, buffers } = fakeAnalyser(0.1);
     const drivers = createOttoDrivers(engineWith({ playing: true, analyser: node }));
-    expect(drivers.level()).toBeCloseTo(0.5);
+    expect(drivers.level()).toBeCloseTo(0.4);
     drivers.level();
     expect(buffers).toHaveLength(2);
     expect(buffers[0]).toBe(buffers[1]);
