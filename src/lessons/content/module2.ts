@@ -237,7 +237,7 @@ const filter: Lesson = {
         'One more filter control: **filter type**. **12db** cuts the highs gently, **24db** cuts them steeper.',
         '**ladder** copies the warm analog filters of old synths, a close cousin of the one in the Roland TB-303, the little bass machine that started acid house.',
         'Snap a **filter type** block under your bass and switch between all three. Ladder is steep, squelchy, and it can growl.',
-        'Bonus: **high-pass** is the mirror image, cutting the lows instead. Try that too, then tell me when it sounds right.',
+        'Bonus: **high-pass** is the mirror image, cutting the lows instead. Filter type changes it too, and ladder only does low-pass, so switch back to **12db** before you try it. Then tell me when it sounds right.',
       ],
       check: { kind: 'manual' },
       hints: [
@@ -248,7 +248,8 @@ const filter: Lesson = {
         },
       ],
       solution: filtered(mod('lpq', 12), ftype('ladder')),
-      success: 'That\'s **.ftype("ladder")**. We\'ll keep the ladder for the acid sounds ahead.',
+      success:
+        'That\'s **.ftype("ladder")**, and it is the filter we\'ll use for the acid sounds ahead.',
     },
   ],
 };
@@ -513,7 +514,7 @@ const fx: Lesson = {
       say: [
         'Your acid line sounds like it lives in a tiny box. Effects give it a space to live in.',
         '**reverb** is the sound of a room: the walls throw back thousands of reflections that blur into a soft tail.',
-        'Snap a **reverb** block under the bass. Try 0.3 for a small room, and go higher for a hall.',
+        'Snap a **reverb** block under the bass. Try 0.3 for a touch of space, and go higher to drown it in reverb.',
       ],
       start: snappy(),
       check: { kind: 'control', control: 'room', min: 0.2 },
@@ -602,7 +603,7 @@ const acidline: Lesson = {
       say: [
         'Capstone time! Press 🎧 hear the goal: a proper acid line, the sound of a thousand warehouse raves.',
         'Rebuild it on a clean slate: sixteen sawtooth notes a cycle, a resonant filter with resonance past 10, and a cutoff that never sits still.',
-        'Move the cutoff however you like: a slow wave in the **filter cutoff**, a **filter envelope**, or both, like mine. I used the ladder, too.',
+        'Every acid line starts with a **filter cutoff**. Then move it however you like: a slow wave plugged into it, a **filter envelope**, or both, like mine. I used the ladder, too.',
         'You know every piece. One block at a time, and listen as you go.',
       ],
       start: program(null),
@@ -610,6 +611,7 @@ const acidline: Lesson = {
         kind: 'all',
         checks: [
           { kind: 'onsetsPerCycle', where: SAW, count: 16 },
+          { kind: 'control', control: 'lpf', where: SAW },
           { kind: 'control', control: 's', where: SAW, equals: 'sawtooth' },
           { kind: 'control', control: 'lpq', where: SAW, min: 10 },
           {
@@ -623,7 +625,7 @@ const acidline: Lesson = {
       },
       hints: [
         {
-          say: 'Start with an arm, **play notes** and a sawtooth. Sixteen notes is a lot to type: **[c2 c2 c3 eb2]*4** plays a group of four, four times.',
+          say: 'Start with an arm, **play notes**, a sawtooth and a **filter cutoff**: resonance and the filter envelope only work once there is a cutoff. For sixteen notes, **[c2 c2 c3 eb2]*4** plays a group of four, four times.',
         },
         {
           say: 'Under one **🐙 arm**: **play notes** with 16 notes, **with sound** sawtooth, **filter cutoff** with a wave plugged in, **resonance** at 15, **filter type** ladder and a **filter envelope** of 3.',
