@@ -101,7 +101,7 @@ export function createEngine(backend: StrudelBackend = createStrudelBackend()): 
     await start();
     if (status !== 'ready') return null;
     const result = await backend.evaluate(code, true);
-    playing = result !== null;
+    if (result !== null) playing = true;
     return result;
   }
 
@@ -152,7 +152,9 @@ export function createStrudelBackend(): StrudelBackend {
         prebake: async () => {
           await Promise.all([
             webModule.samples('github:tidalcycles/dirt-samples'),
-            webModule.samples('github:ritchse/tidal-drum-machines/main/machines'),
+            webModule.samples(
+              'https://raw.githubusercontent.com/felixroos/dough-samples/main/tidal-drum-machines.json',
+            ),
             soundfonts.registerSoundfonts(),
           ]);
         },

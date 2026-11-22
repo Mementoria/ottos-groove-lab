@@ -126,6 +126,16 @@ describe('createEngine', () => {
     expect(fake.evaluate).toHaveBeenLastCalledWith('c', true);
   });
 
+  it('keeps playing state when a later play fails to evaluate', async () => {
+    const fake = makeFake();
+    const engine = createEngine(fake.backend);
+    await engine.play('good');
+    fake.evaluate.mockResolvedValueOnce(null);
+    expect(await engine.play('bad(')).toBeNull();
+    expect(engine.isPlaying()).toBe(true);
+    expect(engine.cyclePosition()).toBe(1.5);
+  });
+
   it('treats empty or whitespace code as silence without evaluating', async () => {
     const fake = makeFake();
     const engine = createEngine(fake.backend);
