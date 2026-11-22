@@ -549,6 +549,30 @@ describe('useLessonSession: typos', () => {
     expect(hook.result.current.speech.lines).toEqual([TYPO_LINE]);
   });
 
+  it('moves the warning to a replacement block with the same broken text', async () => {
+    const engine = typoEngine();
+    const { hook } = setup({ engine });
+    act(() => {
+      hook.result.current.onBlocksChange(change(broken));
+    });
+    await advance(100);
+    await flush();
+    expect(hook.result.current.evalError?.nodeIds).toEqual([brokenSource.id]);
+
+    const replacement = sound('bd [sd hh');
+    act(() => {
+      hook.result.current.onBlocksChange(change(program(null, layer(replacement))));
+    });
+    await advance(100);
+    await flush();
+    // Identical code isn't evaluated again, but the warning follows the block now there.
+    expect(engine.update).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.evalError).toEqual({
+      message: typo.message,
+      nodeIds: [replacement.id],
+    });
+  });
+
   it('pressing Play on a broken pattern from silence says so', async () => {
     const { hook } = setup({ engine: typoEngine() });
     act(() => {

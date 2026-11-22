@@ -380,11 +380,34 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
       });
   }
 
+  /**
+   * Identical code isn't evaluated again, but the blocks behind it may be new (a broken block
+   * replaced by one with the same text): point the warning at the current ones.
+   */
+  function remapTypo(): void {
+    const { typo, program } = state;
+    if (typo === null) return;
+    const sources = new Set(program.layers.map((l) => l.source.id));
+    if (typo.nodeIds.every((id) => sources.has(id))) return;
+    typoSeq += 1;
+    const seq = typoSeq;
+    brokenSourceIds(program)
+      .then((nodeIds) => {
+        if (!attached || seq !== typoSeq || state.typo === null) return;
+        set({ typo: { ...state.typo, nodeIds } });
+      })
+      .catch((reason: unknown) => {
+        console.warn('Could not locate the typo.', reason);
+      });
+  }
+
   function run(): void {
     debounceTimer = undefined;
     if (!state.targetPlaying && state.generated.code !== sentCode) {
       sentCode = state.generated.code;
       playback.update(sentCode);
+    } else {
+      remapTypo();
     }
     check();
   }
