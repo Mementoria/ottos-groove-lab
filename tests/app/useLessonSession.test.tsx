@@ -197,7 +197,12 @@ describe('useLessonSession: entering a lesson', () => {
       workspaces: { fixture: saved },
     });
     const { hook } = setup();
-    expect(hook.result.current.initial).toEqual({ kind: 'saved', state: saved });
+    // The saved step's start, in case the saved blocks won't load.
+    expect(hook.result.current.initial).toEqual({
+      kind: 'saved',
+      state: saved,
+      fallback: JAM_START,
+    });
     expect(hook.result.current.loadRequest).toBeNull();
     expect(hook.result.current.runner.stepIndex).toBe(1);
     expect(hook.result.current.speech.lines).toEqual(['Play with it.']);

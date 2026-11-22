@@ -46,7 +46,7 @@ describe('loadWorkspace', () => {
     const saved = Blockly.serialization.workspaces.save(source);
     source.dispose();
 
-    loadWorkspace(ws, { kind: 'saved', state: saved });
+    loadWorkspace(ws, { kind: 'saved', state: saved, fallback: program(null, layer(sound('hh'))) });
 
     expect(workspaceToProgram(ws).program).toEqual(p);
   });
@@ -77,6 +77,19 @@ describe('loadWorkspace', () => {
     expect(ws.getAllBlocks(false)).toHaveLength(0);
   });
 
+  it('falls back to the given program when saved state will not load', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const start = sample();
+    loadWorkspace(ws, {
+      kind: 'saved',
+      state: { blocks: { languageVersion: 0, blocks: [{ type: 'ogl_removed_block' }] } },
+      fallback: start,
+    });
+    expect(workspaceToProgram(ws).program).toEqual(start);
+    await eventsFired();
+    expect(ws.getUndoStack()).toHaveLength(0);
+  });
+
   it('falls back to an empty workspace when saved state references an unknown block', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const state = programToWorkspaceState(sample());
@@ -88,7 +101,7 @@ describe('loadWorkspace', () => {
     };
 
     expect(() => {
-      loadWorkspace(ws, { kind: 'saved', state: corrupt });
+      loadWorkspace(ws, { kind: 'saved', state: corrupt, fallback: null });
     }).not.toThrow();
 
     expect(ws.getAllBlocks(false)).toHaveLength(0);
@@ -101,7 +114,7 @@ describe('loadWorkspace', () => {
 
   it('falls back to an empty workspace when saved state is not workspace JSON', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    loadWorkspace(ws, { kind: 'saved', state: { blocks: 'nope' } });
+    loadWorkspace(ws, { kind: 'saved', state: { blocks: 'nope' }, fallback: null });
     expect(ws.getAllBlocks(false)).toHaveLength(0);
   });
 });

@@ -13,9 +13,14 @@ import { oglTheme, type Category } from './theme';
 import { buildToolbox, categoryOfTypes } from './toolbox';
 import './blocksPane.css';
 
-/** What the workspace starts with: a Program, saved Blockly JSON, or nothing. */
+/**
+ * What the workspace starts with: a Program, saved Blockly JSON, or nothing. Saved JSON carries
+ * a fallback program (the step's start) for when it won't load.
+ */
 export type BlocksPaneInitial =
-  { kind: 'program'; program: Program } | { kind: 'saved'; state: object } | null;
+  | { kind: 'program'; program: Program }
+  | { kind: 'saved'; state: object; fallback: Program | null }
+  | null;
 
 export interface LoadRequest {
   program: Program;
@@ -54,7 +59,8 @@ function recoverFromFailedLoad(ws: Blockly.Workspace): void {
 
 /**
  * Replaces the workspace contents. Saved state that won't load (e.g. it names a block type that
- * no longer exists) leaves an empty workspace and a console warning instead of an error.
+ * no longer exists) loads its fallback instead (or leaves the workspace empty) and logs a
+ * console warning instead of an error.
  * Undo is cleared, unless `keepUndo` makes the load itself one undoable step.
  */
 export function loadWorkspace(
@@ -73,8 +79,12 @@ export function loadWorkspace(
     try {
       Blockly.serialization.workspaces.load(initial.state, ws);
     } catch (error) {
-      console.warn('Saved blocks could not be loaded; starting with an empty workspace.', error);
+      console.warn('Saved blocks could not be loaded; starting over from the step.', error);
       recoverFromFailedLoad(ws);
+      if (initial.fallback) {
+        const state = programToWorkspaceState(initial.fallback);
+        Blockly.serialization.workspaces.load(state, ws, { recordUndo: false });
+      }
     }
   }
   // Undo shouldn't step back across a load (into the previous lesson, say).

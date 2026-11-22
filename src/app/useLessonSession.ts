@@ -68,7 +68,7 @@ export interface LessonSessionState {
   speech: Speech;
   /** True briefly after a step succeeds. */
   cheering: boolean;
-  /** For BlocksPane: saved work for this lesson if any, else the current step's start. */
+  /** For BlocksPane: saved work for this lesson, else (or if it won't load) the step's start. */
   initial: BlocksPaneInitial;
   unlocked: BlockType[];
   hasNextLesson: boolean;
@@ -181,9 +181,10 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
   const saved = loadState();
   const savedWorkspace = saved.workspaces[lesson.id];
   const startRunner = restoreRunner(lesson, saved, now());
-  const startProgram = savedWorkspace ? null : effectiveStart(course, lessonIndex, startRunner);
+  const stepStart = effectiveStart(course, lessonIndex, startRunner);
+  const startProgram = savedWorkspace ? null : stepStart;
   const initial: BlocksPaneInitial = savedWorkspace
-    ? { kind: 'saved', state: savedWorkspace }
+    ? { kind: 'saved', state: savedWorkspace, fallback: stepStart }
     : startProgram
       ? { kind: 'program', program: startProgram }
       : null;
