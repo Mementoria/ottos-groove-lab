@@ -420,7 +420,16 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
       .then((nodeIds) => {
         if (!attached || seq !== typoSeq) return;
         const typo = { message: error.message, nodeIds };
-        set(announce ? { typo, speech: speech([TYPO_LINE]) } : { typo });
+        if (!announce) {
+          set({ typo });
+          return;
+        }
+        // The learner is busy, not idle: a pending hint offer would hide the line, so drop it.
+        const { runner } = state;
+        const next = runner.offer
+          ? reduce(lesson, runner, { type: 'dismissOffer', now: now() })
+          : runner;
+        set({ typo, runner: next, speech: speech([TYPO_LINE]) });
       })
       .catch((reason: unknown) => {
         console.warn('Could not locate the typo.', reason);

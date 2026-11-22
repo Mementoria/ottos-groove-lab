@@ -474,6 +474,21 @@ describe('useLessonSession: typos', () => {
     expect(hook.result.current.playing).toBe(false);
   });
 
+  it('a typo replaces a pending hint offer: the learner is busy, not idle', async () => {
+    const { hook } = setup({ engine: typoEngine() });
+    clock = T0 + IDLE_MS;
+    await advance(1_000);
+    expect(hook.result.current.runner.offer).toBe(true);
+
+    act(() => {
+      hook.result.current.onBlocksChange(change(broken));
+    });
+    await advance(100);
+    await flush();
+    expect(hook.result.current.runner.offer).toBe(false);
+    expect(hook.result.current.speech.lines).toEqual([TYPO_LINE]);
+  });
+
   it('pressing Play on a broken pattern from silence says so', async () => {
     const { hook } = setup({ engine: typoEngine() });
     act(() => {
