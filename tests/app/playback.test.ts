@@ -16,8 +16,11 @@ function deferred<T>(): Deferred<T> {
 
 const evaluated: EvalInfo = { pattern: { queryArc: () => [] }, miniLocations: [] };
 
-/** A shared engine whose evaluations can be held open, recording every call in order. */
-function sharedEngine(): {
+/**
+ * A shared engine whose evaluations can be held open, recording every call in order. Code in
+ * `failing` doesn't evaluate: it returns null and starts nothing.
+ */
+function sharedEngine(failing: ReadonlySet<string> = new Set()): {
   engine: AudioEngine;
   calls: string[];
   hold: (code: string) => Deferred<null>;
@@ -29,8 +32,9 @@ function sharedEngine(): {
     calls.push(`${kind}:${code}`);
     const gate = held.get(code);
     if (gate) await gate.promise;
-    playing = true;
     calls.push(`done:${code}`);
+    if (failing.has(code)) return null;
+    if (kind === 'play') playing = true;
     return evaluated;
   };
   const engine: AudioEngine = {
@@ -121,5 +125,59 @@ describe('createPlayback across sessions sharing one engine', () => {
     await flush();
 
     expect(settled).not.toHaveBeenCalled();
+  });
+});
+
+describe('createPlayback: a pending Play', () => {
+  it('carries into the edit queued behind a Play that failed', async () => {
+    const { engine, calls, hold } = sharedEngine(new Set(['broken']));
+    const gate = hold('broken');
+    const playback = createPlayback(engine, () => {});
+    playback.play('broken');
+    await flush();
+    playback.update('fixed');
+
+    gate.resolve(null);
+    await flush();
+
+    expect(calls).toContain('play:fixed');
+    expect(engine.isPlaying()).toBe(true);
+    expect(playback.wantsPlaying()).toBe(true);
+  });
+
+  it('is still cancelled by Stop', async () => {
+    const { engine, calls, hold } = sharedEngine(new Set(['broken']));
+    const gate = hold('broken');
+    const playback = createPlayback(engine, () => {});
+    playback.play('broken');
+    await flush();
+    playback.update('fixed');
+    playback.stop();
+
+    gate.resolve(null);
+    await flush();
+
+    expect(calls).toContain('update:fixed');
+    expect(calls).not.toContain('play:fixed');
+    expect(engine.isPlaying()).toBe(false);
+    expect(playback.wantsPlaying()).toBe(false);
+  });
+
+  it('is not needed once sound is playing: later edits stay plain updates', async () => {
+    const { engine, calls, hold } = sharedEngine(new Set(['broken']));
+    const playback = createPlayback(engine, () => {});
+    playback.play('a');
+    await flush();
+    const gate = hold('broken');
+    playback.update('broken');
+    await flush();
+    playback.update('fixed');
+
+    gate.resolve(null);
+    await flush();
+
+    expect(calls).toContain('update:fixed');
+    expect(calls).not.toContain('play:fixed');
+    expect(engine.isPlaying()).toBe(true);
   });
 });

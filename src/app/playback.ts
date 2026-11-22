@@ -63,6 +63,12 @@ export function createPlayback(engine: AudioEngine, onSettled: OnSettled): Playb
   };
   const queued = (): boolean => next !== null;
   const playQueued = (): boolean => next?.play === true;
+  /** Makes the queued job (if any) a play; true if there was one. */
+  const carryPlay = (): boolean => {
+    if (next === null) return false;
+    next = { ...next, play: true };
+    return true;
+  };
   const isDisposed = (): boolean => disposed;
 
   async function pump(): Promise<void> {
@@ -88,8 +94,12 @@ export function createPlayback(engine: AudioEngine, onSettled: OnSettled): Playb
           return { info: result, evalError: error };
         });
         if (isDisposed()) return;
-        // Play with nothing to play, or an edit down to silence, ends the intent too.
-        if (wantPlaying && !playQueued() && !engine.isPlaying()) wantPlaying = false;
+        if (wantPlaying && !engine.isPlaying()) {
+          // A Play that failed hands its intent to the edit queued behind it (a fix, say).
+          // Otherwise play with nothing to play, or an edit down to silence, ends the intent.
+          const carried = play && carryPlay();
+          if (!carried && !playQueued()) wantPlaying = false;
+        }
         if (!queued()) onSettled(code, info, evalError, play);
       }
     } finally {
