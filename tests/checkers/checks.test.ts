@@ -60,6 +60,14 @@ describe('runCheck', () => {
     expect(await passes({ kind: 'layers', min: 2 }, 120, kick)).toBe(false);
   });
 
+  it('layers counts only arms that sound: muted and empty-pattern arms are left out', async () => {
+    const check: Check = { kind: 'layers', min: 2 };
+    expect(await passes(check, 120, kick, muted(layer(grid('hh', [2]))))).toBe(false);
+    expect(await passes(check, 120, kick, layer(sound('  ')))).toBe(false);
+    expect(await passes(check, 120, kick, layer(notes('')))).toBe(false);
+    expect(await passes(check, 120, kick, layer(sound('hh*8')))).toBe(true);
+  });
+
   it('tempo reads program.bpm', async () => {
     const check: Check = { kind: 'tempo', bpm: 120, tolerance: 5 };
     expect(await passes(check, 122, kick)).toBe(true);
@@ -98,6 +106,18 @@ describe('runCheck', () => {
     expect(
       await passes({ kind: 'onsetsAt', where: { s: 'bd' }, steps: [0, 4, 8, 12, 14] }, 120, kick),
     ).toBe(false);
+  });
+
+  it('onsetsAt reports steps in numeric order, off-grid onsets last', async () => {
+    const ctx = await buildContext(program(120, kick), true);
+    expect(runCheck({ kind: 'onsetsAt', where: { s: 'bd' }, steps: [12, 0, 8, 4] }, ctx)).toEqual({
+      pass: true,
+      reason: 'steps [0,4,8,12], wanted [0,4,8,12]',
+    });
+    const mixed = await buildContext(program(120, layer(sound('bd [bd bd bd] ~ bd'))), true);
+    expect(runCheck({ kind: 'onsetsAt', where: { s: 'bd' }, steps: [0] }, mixed).reason).toBe(
+      'steps [0,4,12,null,null], wanted [0]',
+    );
   });
 
   it('onsetsAt fails on off-grid matching onsets', async () => {

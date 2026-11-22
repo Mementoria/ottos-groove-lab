@@ -35,7 +35,8 @@ function modCall(m: Modifier): string {
   return `.${m.name}(${arg})`;
 }
 
-function isRenderable(l: Layer): boolean {
+/** Whether a layer has anything to play (codegen drops a blank pattern). */
+export function isRenderable(l: Layer): boolean {
   return l.source.kind === 'grid' || l.source.mini.trim() !== '';
 }
 

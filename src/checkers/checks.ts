@@ -1,7 +1,7 @@
 import { compileForCheck, onsets } from '../audio/compile';
 import type { Onset } from '../audio/compile';
 import type { Program } from '../program/types';
-import { toCheckExpression } from '../program/codegen';
+import { isRenderable, toCheckExpression } from '../program/codegen';
 
 export type Where = { s?: string; bank?: string };
 
@@ -70,6 +70,12 @@ function outcome(pass: boolean, reason: string): CheckResult {
 function numeric(o: Onset, key: string): number | undefined {
   const v = o.value[key];
   return typeof v === 'number' ? v : undefined;
+}
+
+/** Numeric order, with off-grid (null) steps last. */
+function byStep(a: number | null, b: number | null): number {
+  if (a === null || b === null) return (a === null ? 1 : 0) - (b === null ? 1 : 0);
+  return a - b;
 }
 
 type Of<K extends Check['kind']> = Extract<Check, { kind: K }>;
@@ -165,7 +171,8 @@ export function runCheck(check: Check, ctx: CheckContext): CheckResult {
       return outcome(false, `none passed: ${reasons.join('; ')}`);
     }
     case 'layers': {
-      const n = ctx.program.layers.length;
+      // Only arms that sound count, as in the check expression.
+      const n = ctx.program.layers.filter((l) => !l.muted && isRenderable(l)).length;
       return outcome(n >= check.min, `${String(n)} layers, need ${String(check.min)}`);
     }
     case 'tempo': {
@@ -184,8 +191,8 @@ export function runCheck(check: Check, ctx: CheckContext): CheckResult {
       const found = ctx.onsets
         .filter((o) => o.cycle === 0 && matches(o, check.where))
         .map((o) => o.step16);
-      const actual = [...found].sort();
-      const wanted = [...check.steps].sort();
+      const actual = [...found].sort(byStep);
+      const wanted = [...check.steps].sort(byStep);
       const same = actual.length === wanted.length && actual.every((s, i) => s === wanted[i]);
       return outcome(same, `steps [${actual.map(String).join(',')}], wanted [${wanted.join(',')}]`);
     }
