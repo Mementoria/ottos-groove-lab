@@ -69,3 +69,27 @@ declare module '@strudel/web' {
   export function getAudioContext(): AudioContext;
   export function getSuperdoughAudioController(): SuperdoughAudioController;
 }
+
+// Deep import: just the mini-notation highlighting, without the whole @strudel/codemirror REPL.
+declare module '@strudel/codemirror/highlight.mjs' {
+  import type { Extension } from '@codemirror/state';
+  import type { EditorView } from '@codemirror/view';
+  import type { Hap } from '@strudel/core';
+
+  /** State fields + decorations that outline the mini-notation source of the active haps. */
+  export const highlightExtension: Extension;
+  /** Call on each evaluation with the transpiler's mini-notation locations ([from, to] offsets). */
+  export function updateMiniLocations(
+    view: EditorView,
+    locations: readonly (readonly [number, number])[],
+  ): void;
+  /**
+   * Call each frame with the haps active now. Haps without `whole` or `context.locations`
+   * (which every hap from an evaluated pattern carries) are ignored.
+   */
+  export function highlightMiniLocations(
+    view: EditorView,
+    atTime: number,
+    haps: readonly Hap[],
+  ): void;
+}
