@@ -1,0 +1,59 @@
+.ogl-codepane {
+  /* Outline colour for the active-note flash (@strudel/codemirror reads --foreground). */
+  --foreground: #e0457b;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.ogl-codepane-toggle {
+  align-self: flex-start;
+  font: inherit;
+  padding: 4px 12px;
+  border: 1px solid #c9c1b3;
+  border-radius: 999px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.ogl-codepane-editor {
+  min-height: 0;
+  overflow: auto;
+  border-radius: 8px;
+  background: #fffdf8;
+  border: 1px solid #e3dccf;
+}
+
+.ogl-codepane-editor .cm-editor {
+  font-size: 14px;
+}
+
+.ogl-codepane-editor .cm-editor.cm-focused {
+  outline: 2px solid #c9c1b3;
+}
+
+.ogl-codepane-editor .cm-scroller {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  line-height: 1.5;
+}
+
+/* "Look here": a soft amber wash that fades out over the highlight's ttl (set inline). */
+.ogl-glow {
+  border-radius: 3px;
+  animation-name: ogl-glow-fade;
+  animation-duration: 2500ms;
+  animation-timing-function: ease-in;
+  animation-fill-mode: forwards;
+}
+
+@keyframes ogl-glow-fade {
+  from {
+    background-color: rgba(255, 183, 77, 0.55);
+    box-shadow: 0 0 6px rgba(255, 183, 77, 0.6);
+  }
+  to {
+    background-color: rgba(255, 183, 77, 0);
+    box-shadow: 0 0 6px rgba(255, 183, 77, 0);
+  }
+}

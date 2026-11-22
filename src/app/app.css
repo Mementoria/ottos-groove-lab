@@ -1,0 +1,321 @@
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #0b1320;
+  font-family: system-ui, sans-serif;
+}
+
+/* Light text only on the dark screens: Blockly's toolbox and widgets (appended to <body>)
+   inherit colour, so the page itself must not set a light one. */
+.start,
+.map,
+.lesson-bar {
+  color: #e6edf7;
+}
+
+/* Shared buttons */
+.app-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 14px;
+  border: 1px solid #3a4b66;
+  border-radius: 999px;
+  background: #16233a;
+  color: #e6edf7;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.app-btn:hover:not(:disabled) {
+  background: #1f3050;
+}
+
+.app-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.app-btn:focus-visible,
+.map-card:focus-visible {
+  outline: 2px solid #6ee7b7;
+  outline-offset: 2px;
+}
+
+.app-btn-main {
+  font-size: 16px;
+  padding: 10px 22px;
+  background: #6ee7b7;
+  border-color: #6ee7b7;
+  color: #0b1320;
+}
+
+.app-btn-main:hover:not(:disabled) {
+  background: #8bf0c8;
+}
+
+.app-btn-danger {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.app-btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.app-btn-small {
+  font-size: 13px;
+  padding: 3px 12px;
+}
+
+/* Start screen */
+.start {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.start-title,
+.map-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.start-otto {
+  position: relative;
+}
+
+.start-zzz {
+  position: absolute;
+  top: 0;
+  right: -24px;
+  color: #8fa3bf;
+  font-style: italic;
+  letter-spacing: 0.2em;
+}
+
+/* Course map */
+.map {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+.map-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.map-empty {
+  color: #8fa3bf;
+  font-size: 18px;
+}
+
+.map-module {
+  margin-bottom: 28px;
+}
+
+.map-module-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8fa3bf;
+}
+
+.map-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.map-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 180px;
+  min-height: 84px;
+  padding: 12px 14px;
+  font: inherit;
+  text-align: left;
+  border: 1px solid #3a4b66;
+  border-radius: 12px;
+  background: #16233a;
+  color: #e6edf7;
+  cursor: pointer;
+}
+
+.map-card:hover:not(:disabled) {
+  border-color: #c784ee;
+}
+
+.map-card:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.map-card-title {
+  font-weight: 600;
+}
+
+.map-card-status {
+  font-size: 12px;
+  color: #8fa3bf;
+}
+
+/* Song Studio: Otto holds each style with one arm. */
+.map-card-soon {
+  border-style: dashed;
+}
+
+.arm-glyph {
+  flex: none;
+}
+
+/* Reset dialog */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 55%);
+}
+
+.dialog {
+  max-width: 380px;
+  padding: 20px 22px;
+  border-radius: 14px;
+  background: #16233a;
+  border: 1px solid #3a4b66;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 40%);
+}
+
+.dialog-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+/* Lesson view: bar, stage, then blocks | code filling the rest */
+.lesson {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* While the lesson view's code (Blockly, CodeMirror) arrives. */
+.lesson-loading {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: #e6edf7;
+  font-size: 16px;
+}
+
+.lesson-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 20px;
+  background: #08101b;
+  border-bottom: 1px solid #1f2d44;
+}
+
+.lesson-title {
+  font-weight: 600;
+}
+
+.lesson-panes {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr);
+}
+
+.lesson-blocks {
+  min-width: 0;
+  min-height: 0;
+}
+
+.lesson-code {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 10px 12px;
+  background: #f6f1e7;
+  color: #222;
+  border-left: 1px solid #1f2d44;
+}
+
+.lesson-code-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lesson-code-title {
+  margin-right: auto;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b6253;
+}
+
+.lesson-code .app-btn {
+  background: #ffffff;
+  border-color: #c9c1b3;
+  color: #222;
+}
+
+.lesson-code .app-btn:hover:not(:disabled) {
+  background: #efe9dd;
+}
+
+/* Collapsed code: a slim strip beside the blocks until the learner peeks. */
+.lesson-panes.is-code-collapsed {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.is-code-collapsed .lesson-code {
+  width: 150px;
+}
+
+.is-code-collapsed .lesson-code-header {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.is-code-collapsed .lesson-code-header .app-btn {
+  justify-content: center;
+}
+
+.is-code-collapsed .lesson-code-title {
+  margin-right: 0;
+}
