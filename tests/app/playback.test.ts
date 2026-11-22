@@ -206,19 +206,19 @@ describe('createPlayback: onEvaluated', () => {
     const gate = hold('a');
     const settled = vi.fn();
     const evaluatedCodes: string[] = [];
-    const playback = createPlayback(engine, settled, (code, info) => {
-      evaluatedCodes.push(`${code}:${info === null ? 'failed' : 'ok'}`);
+    const playback = createPlayback(engine, settled, (code, info, owner) => {
+      evaluatedCodes.push(`${code}:${info === null ? 'failed' : 'ok'}:${owner}`);
     });
     playback.play('a');
     await flush();
-    playback.update('b');
+    playback.update('b', 'goal');
 
     gate.resolve(null);
     await flush();
 
-    expect(evaluatedCodes).toEqual(['a:ok', 'b:failed']);
+    expect(evaluatedCodes).toEqual(['a:ok:learner', 'b:failed:goal']);
     // Only the latest result is reported.
     expect(settled).toHaveBeenCalledTimes(1);
-    expect(settled).toHaveBeenCalledWith('b', null, null, false);
+    expect(settled).toHaveBeenCalledWith('b', null, null, false, 'goal');
   });
 });

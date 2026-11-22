@@ -1,8 +1,11 @@
 import type { AudioEngine, EvalInfo } from '../audio/engine';
 
+/** Whose pattern a job installs: fixed when the job is queued, not when it lands. */
+export type PlaybackOwner = 'learner' | 'goal';
+
 export interface Playback {
-  play: (code: string) => void;
-  update: (code: string) => void;
+  play: (code: string, owner?: PlaybackOwner) => void;
+  update: (code: string, owner?: PlaybackOwner) => void;
   stop: () => void;
   /** The learner's intent (true from play until stop), not whether sound is coming out yet. */
   wantsPlaying: () => boolean;
@@ -15,6 +18,7 @@ export type OnSettled = (
   info: EvalInfo | null,
   error: Error | null,
   played: boolean,
+  owner: PlaybackOwner,
 ) => void;
 
 /**
@@ -50,7 +54,13 @@ function withEngineLock<T>(engine: AudioEngine, run: () => Promise<T>): Promise<
  * latest code, and only the result of the latest code is reported.
  */
 /** Called for every evaluation that ran, even one whose result is superseded and not reported. */
-export type OnEvaluated = (code: string, info: EvalInfo | null) => void;
+export type OnEvaluated = (code: string, info: EvalInfo | null, owner: PlaybackOwner) => void;
+
+interface Job {
+  code: string;
+  play: boolean;
+  owner: PlaybackOwner;
+}
 
 export function createPlayback(
   engine: AudioEngine,
@@ -59,11 +69,11 @@ export function createPlayback(
 ): Playback {
   let busy = false;
   let disposed = false;
-  let next: { code: string; play: boolean } | null = null;
+  let next: Job | null = null;
   let wantPlaying = false;
 
   // Read through functions: `next` and `disposed` change while `pump` awaits.
-  const take = (): { code: string; play: boolean } | null => {
+  const take = (): Job | null => {
     const job = next;
     next = null;
     return job;
@@ -82,7 +92,7 @@ export function createPlayback(
     busy = true;
     try {
       for (let job = take(); job !== null && !isDisposed(); job = take()) {
-        const { code, play } = job;
+        const { code, play, owner } = job;
         const { info, evalError } = await withEngineLock(engine, async () => {
           // Disposed while waiting for the lock: don't make the next session wait on it too.
           if (isDisposed()) return { info: null, evalError: null };
@@ -104,14 +114,14 @@ export function createPlayback(
         });
         if (isDisposed()) return;
         // What the engine now holds changes with every evaluation, reported or not.
-        onEvaluated(code, info);
+        onEvaluated(code, info, owner);
         if (wantPlaying && !engine.isPlaying()) {
           // A Play that failed hands its intent to the edit queued behind it (a fix, say).
           // Otherwise play with nothing to play, or an edit down to silence, ends the intent.
           const carried = play && carryPlay();
           if (!carried && !playQueued()) wantPlaying = false;
         }
-        if (!queued()) onSettled(code, info, evalError, play);
+        if (!queued()) onSettled(code, info, evalError, play, owner);
       }
     } finally {
       busy = false;
@@ -123,15 +133,15 @@ export function createPlayback(
   }
 
   return {
-    play(code) {
+    play(code, owner = 'learner') {
       if (disposed) return;
       wantPlaying = true;
-      next = { code, play: true };
+      next = { code, play: true, owner };
       kick();
     },
-    update(code) {
+    update(code, owner = 'learner') {
       if (disposed) return;
-      next = { code, play: next?.play ?? false };
+      next = { code, play: next?.play ?? false, owner };
       kick();
     },
     stop() {

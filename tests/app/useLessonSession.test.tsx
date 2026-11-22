@@ -851,6 +851,34 @@ describe('useLessonSession: hear the goal', () => {
     expect(hook.result.current.playing).toBe(false);
   });
 
+  it('stops the goal that lands after the learner left it, when their edit then fails', async () => {
+    const engine = fakeEngine();
+    const { hook } = setup({ engine });
+    act(() => {
+      hook.result.current.play();
+    });
+    await flush();
+
+    // The goal is still evaluating when the learner edits (a typo) and so returns to their own.
+    const goalDone = deferred<null>();
+    engine.setPlayDelay(goalDone);
+    act(() => {
+      hook.result.current.toggleTarget();
+    });
+    engine.update.mockResolvedValueOnce(null);
+    act(() => {
+      hook.result.current.onBlocksChange(change(program(null, layer(sound('bd [sd')))));
+    });
+    expect(hook.result.current.targetPlaying).toBe(false);
+
+    goalDone.resolve(null);
+    await flush();
+
+    // The goal's pattern did install, and the learner's edit didn't replace it: stop it.
+    expect(engine.isPlaying()).toBe(false);
+    expect(hook.result.current.playing).toBe(false);
+  });
+
   it('keeps the learner’s restored sound when a later queued edit fails', async () => {
     const restoredCode = program(null, layer(sound('bd sd')));
     const brokenCode = program(null, layer(sound('bd [sd')));

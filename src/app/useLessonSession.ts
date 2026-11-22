@@ -10,7 +10,7 @@ import type { Lesson, Step } from '../lessons/types';
 import { highlightBus, type Highlight } from '../otto/highlightBus';
 import { toStrudelCode, type Generated } from '../program/codegen';
 import type { Program } from '../program/types';
-import { createPlayback, type OnSettled, type Playback } from './playback';
+import { createPlayback, type OnSettled, type Playback, type PlaybackOwner } from './playback';
 import { loadState, saveState, type SavedState } from './storage';
 import { brokenSourceIds } from './typos';
 
@@ -282,15 +282,14 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
   let typoSeq = 0;
 
   /** Every evaluation, superseded or not, changes which pattern the engine holds. */
-  function onEvaluated(code: string, info: EvalInfo | null): void {
-    const goal = targetCode !== null && code === targetCode;
-    if (info !== null) installed = goal ? 'goal' : 'learner';
-    else if (goal) installed = installedBeforeGoal;
+  function onEvaluated(_code: string, info: EvalInfo | null, owner: PlaybackOwner): void {
+    if (info !== null) installed = owner;
+    else if (owner === 'goal') installed = installedBeforeGoal;
   }
 
-  function onSettled(...[code, info, error, played]: Parameters<OnSettled>): void {
+  function onSettled(...[code, info, error, played, owner]: Parameters<OnSettled>): void {
     if (!attached) return;
-    const goal = targetCode !== null && code === targetCode;
+    const goal = owner === 'goal';
     if (info === null && !goal && installed === 'goal' && engine.isPlaying()) {
       // The learner's code didn't evaluate, so what is sounding is still the goal: stop it.
       playback.stop();
@@ -550,7 +549,7 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
       installedBeforeGoal = installed;
       installed = 'goal';
       sentCode = targetCode;
-      playback.play(sentCode);
+      playback.play(sentCode, 'goal');
       set({ targetPlaying: true });
     },
     requestHint() {
