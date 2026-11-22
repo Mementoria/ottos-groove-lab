@@ -392,8 +392,10 @@ const movement: Lesson = {
       ],
       check: {
         kind: 'all',
+        // Read from the program: a slow sweep barely moves inside the 4-cycle onset window, and
+        // a square wave sits on one value for half its period.
         checks: [
-          { kind: 'controlVaries', control: 'lpf', cycles: 4, minSpread: 500 },
+          { kind: 'signalRange', control: 'lpf', minSpread: 500 },
           { kind: 'signalSlow', control: 'lpf', min: 8 },
         ],
       },
@@ -618,6 +620,8 @@ const acidline: Lesson = {
             kind: 'any',
             checks: [
               { kind: 'controlVaries', control: 'lpf', where: SAW, cycles: 4, minSpread: 500 },
+              // The goal's own 8-cycle sweep only covers 600–1000 in the onset window.
+              { kind: 'signalRange', control: 'lpf', minSpread: 500 },
               { kind: 'control', control: 'lpenv', where: SAW, min: 2 },
             ],
           },
