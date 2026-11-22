@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { CourseMap } from './app/CourseMap';
-import { LessonView } from './app/LessonView';
 import { StartScreen } from './app/StartScreen';
 import { wakeWithin } from './app/wake';
 import { createEngine, type AudioEngine } from './audio/engine';
 import { course } from './lessons/content';
 import type { Lesson } from './lessons/types';
 import './app/app.css';
+
+// Blockly, CodeMirror and the Strudel transpiler live behind the lesson view, so the start
+// screen and the map load light.
+const LessonView = lazy(() =>
+  import('./app/LessonView').then(({ LessonView }) => ({ default: LessonView })),
+);
 
 type Screen =
   { name: 'start'; waking: boolean } | { name: 'map' } | { name: 'lesson'; index: number };
@@ -49,19 +54,27 @@ export function App({ engine: injected, lessons = course }: AppProps) {
       );
     case 'lesson':
       return (
-        <LessonView
-          key={screen.index}
-          engine={engine}
-          lessons={lessons}
-          index={screen.index}
-          onBack={() => {
-            setScreen({ name: 'map' });
-          }}
-          onNext={() => {
-            const next = screen.index + 1;
-            setScreen(next < lessons.length ? { name: 'lesson', index: next } : { name: 'map' });
-          }}
-        />
+        <Suspense
+          fallback={
+            <div className="lesson-loading" role="status">
+              Opening the lesson…
+            </div>
+          }
+        >
+          <LessonView
+            key={screen.index}
+            engine={engine}
+            lessons={lessons}
+            index={screen.index}
+            onBack={() => {
+              setScreen({ name: 'map' });
+            }}
+            onNext={() => {
+              const next = screen.index + 1;
+              setScreen(next < lessons.length ? { name: 'lesson', index: next } : { name: 'map' });
+            }}
+          />
+        </Suspense>
       );
   }
 }

@@ -1,28 +1,10 @@
 import * as Blockly from 'blockly';
 import type { NumericModName } from '../program/types';
 import { FieldStepGrid, STEP_GRID_CSS } from './FieldStepGrid';
+import { BT, MOD_PREFIX, modBlockType, type BlockType } from './blockIds';
 import { CATEGORY_COLOURS, type Category } from './theme';
 
-export const BT = {
-  layer: 'ogl_layer',
-  tempo: 'ogl_tempo',
-  sound: 'ogl_sound',
-  notes: 'ogl_notes',
-  grid: 'ogl_grid',
-  osc: 'ogl_osc',
-  bank: 'ogl_bank',
-  ftype: 'ogl_ftype',
-  signal: 'ogl_signal',
-} as const;
-
-/** A `BT` value or `ogl_mod_${NumericModName}`. */
-export type BlockType = string;
-
-const MOD_PREFIX = 'ogl_mod_';
-
-export function modBlockType(name: NumericModName): BlockType {
-  return `${MOD_PREFIX}${name}`;
-}
+export { BT, modBlockType, type BlockType } from './blockIds';
 
 interface NumericModInfo {
   /** The friendly musical name shown first on the block. */

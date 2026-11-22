@@ -1,4 +1,4 @@
-import { BT } from '../../blocks/blockTypes';
+import { BT } from '../../blocks/blockIds';
 import { layer, program, sound } from '../../program/build';
 import type { Lesson } from '../types';
 

@@ -1,4 +1,4 @@
-import type { BlockType } from '../../blocks/blockTypes';
+import type { BlockType } from '../../blocks/blockIds';
 import type { Lesson } from '../types';
 import { acidSong } from './acid';
 import { module0 } from './module0';

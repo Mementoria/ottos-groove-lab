@@ -1,4 +1,4 @@
-import { BT, modBlockType } from '../../blocks/blockTypes';
+import { BT, modBlockType } from '../../blocks/blockIds';
 import { bank, grid, layer, mod, program, sound } from '../../program/build';
 import type { Layer } from '../../program/types';
 import type { Lesson } from '../types';

@@ -1,4 +1,4 @@
-import type { BlockType } from '../blocks/blockTypes';
+import type { BlockType } from '../blocks/blockIds';
 import type { Check } from '../checkers/checks';
 import type { CodePaneMode } from '../codepane/CodePane';
 import type { Highlight } from '../otto/highlightBus';
