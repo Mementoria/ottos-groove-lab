@@ -254,7 +254,7 @@ const tempo: Lesson = {
       ],
       solution: program(120, kick(), snare(), fastHats()),
       success:
-        '**.fast(2)** doubled the hats and left the kick and snare alone. Tempo moves everything; fast and slow move one arm.',
+        "Eight hats a cycle, and the kick and snare didn't budge. That's the trick of **faster**: it doubles a pattern without retyping it. Tempo moves everything; faster and slower move one arm.",
     },
   ],
 };
