@@ -18,8 +18,6 @@ declare module '@strudel/core' {
   export interface Pattern {
     queryArc(begin: number, end: number): Hap[];
   }
-
-  export function evalScope(...modules: Promise<unknown>[]): Promise<unknown[]>;
 }
 
 declare module '@strudel/mini' {
@@ -33,8 +31,14 @@ declare module '@strudel/tonal' {
 }
 
 declare module '@strudel/transpiler' {
-  import type { Pattern } from '@strudel/core';
-  export function evaluate(code: string): Promise<{ pattern: Pattern; meta: unknown }>;
+  export interface TranspilerOptions {
+    wrapAsync?: boolean;
+    addReturn?: boolean;
+    emitMiniLocations?: boolean;
+    emitWidgets?: boolean;
+  }
+  /** Rewrites Strudel code (mini-notation strings, `$:` labels) into plain JavaScript. */
+  export function transpiler(input: string, options?: TranspilerOptions): { output: string };
 }
 
 declare module '@strudel/soundfonts' {

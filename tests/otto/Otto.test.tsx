@@ -18,4 +18,14 @@ describe('Otto', () => {
     unmount();
     expect(cancel).toHaveBeenCalled();
   });
+
+  it('closes his eyes when asleep', () => {
+    const { container, rerender } = render(
+      <Otto beatPhase={() => 0} level={() => 0} mood="asleep" />,
+    );
+    expect(container.querySelector('.otto-eyes-closed')).not.toBeNull();
+    expect(container.querySelector('.otto-eyes-open')).toBeNull();
+    rerender(<Otto beatPhase={() => 0} level={() => 0} mood="idle" />);
+    expect(container.querySelector('.otto-eyes-open')).not.toBeNull();
+  });
 });

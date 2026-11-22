@@ -4,7 +4,8 @@ import { bobOffset, tentaclePath, TENTACLE_COUNT } from './motion';
 export interface OttoProps {
   beatPhase: () => number;
   level: () => number;
-  mood: 'idle' | 'talking' | 'cheer';
+  /** 'asleep' closes his eyes and holds him still (the start screen). */
+  mood: 'idle' | 'talking' | 'cheer' | 'asleep';
 }
 
 const JUMP_MS = 600;
@@ -41,8 +42,9 @@ export function Otto({ beatPhase, level, mood }: OttoProps) {
     const tick = (now: number) => {
       const { beatPhase: phaseFn, level: levelFn } = propsRef.current;
       const m = moodRef.current;
-      const phase = phaseFn();
-      const lvl = reduced ? 0 : levelFn();
+      const still = reduced || m === 'asleep';
+      const phase = still ? 0 : phaseFn();
+      const lvl = still ? 0 : levelFn();
 
       let jump = 0;
       let raise = 0;
@@ -55,13 +57,10 @@ export function Otto({ beatPhase, level, mood }: OttoProps) {
       }
 
       for (let i = 0; i < TENTACLE_COUNT; i += 1) {
-        // Reduced motion: hold a near-still pose (minimum amplitude, no phase travel).
-        tentacleRefs.current[i]?.setAttribute(
-          'd',
-          tentaclePath(i, reduced ? 0 : phase, lvl, raise),
-        );
+        // Reduced motion or asleep: hold a near-still pose (minimum amplitude, no phase travel).
+        tentacleRefs.current[i]?.setAttribute('d', tentaclePath(i, phase, lvl, raise));
       }
-      const bob = reduced ? 0 : bobOffset(phase, lvl) * (m === 'talking' ? 1 : 0.6);
+      const bob = still ? 0 : bobOffset(phase, lvl) * (m === 'talking' ? 1 : 0.6);
       bodyRef.current?.setAttribute('transform', `translate(0 ${(-bob - jump).toFixed(2)})`);
       if (mouthRef.current) {
         const open = m === 'talking' && !reduced && Math.sin(now / 110) > 0;
@@ -97,10 +96,25 @@ export function Otto({ beatPhase, level, mood }: OttoProps) {
       </g>
       <g ref={bodyRef}>
         <ellipse cx="65" cy="52" rx="34" ry="32" fill="#c784ee" />
-        <circle cx="53" cy="50" r="8" fill="#fff" />
-        <circle cx="77" cy="50" r="8" fill="#fff" />
-        <circle cx="55" cy="51" r="4" fill="#222" />
-        <circle cx="79" cy="51" r="4" fill="#222" />
+        {mood === 'asleep' ? (
+          <g
+            className="otto-eyes-closed"
+            stroke="#5a2a78"
+            strokeWidth="3"
+            strokeLinecap="round"
+            fill="none"
+          >
+            <path d="M46 51 Q53 56 60 51" />
+            <path d="M70 51 Q77 56 84 51" />
+          </g>
+        ) : (
+          <g className="otto-eyes-open">
+            <circle cx="53" cy="50" r="8" fill="#fff" />
+            <circle cx="77" cy="50" r="8" fill="#fff" />
+            <circle cx="55" cy="51" r="4" fill="#222" />
+            <circle cx="79" cy="51" r="4" fill="#222" />
+          </g>
+        )}
         <path
           ref={mouthRef}
           d={MOUTH_CLOSED}

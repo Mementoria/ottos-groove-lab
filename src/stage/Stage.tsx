@@ -9,6 +9,8 @@ export interface StageProps {
   checklist: ChecklistProps;
   otto: OttoProps;
   bubble: BubbleProps;
+  /** A new key per presentation remounts the bubble, so even repeated lines replay. */
+  bubbleKey: string;
   scope: ScopeProps;
   spectrumAvailable: boolean;
   playing: boolean;
@@ -29,6 +31,7 @@ export function Stage({
   checklist,
   otto,
   bubble,
+  bubbleKey,
   scope,
   spectrumAvailable,
   playing,
@@ -57,7 +60,7 @@ export function Stage({
             actions={[{ label: 'Retry', onClick: onRetryAudio }]}
           />
         ) : (
-          <Bubble {...bubble} />
+          <Bubble key={bubbleKey} {...bubble} />
         )}
       </div>
       <div className="stage-right">

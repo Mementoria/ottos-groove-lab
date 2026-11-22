@@ -1,6 +1,5 @@
-import { evalScope } from '@strudel/core';
 import type { Pattern } from '@strudel/core';
-import { evaluate } from '@strudel/transpiler';
+import { transpiler } from '@strudel/transpiler';
 
 export type { Pattern };
 
@@ -11,18 +10,48 @@ export interface Onset {
   value: Record<string, unknown>;
 }
 
-let scopeReady: Promise<unknown> | undefined;
+interface CheckScope {
+  names: string[];
+  values: unknown[];
+}
 
-function ensureScope(): Promise<unknown> {
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+/** Not usable as parameter names in strict-mode code. */
+const RESERVED = new Set(['eval', 'arguments', 'default']);
+
+let scopeReady: Promise<CheckScope> | undefined;
+
+/**
+ * The check vocabulary as explicit parameters. Deliberately not `evalScope`: that writes every
+ * export onto globalThis, where @strudel/web's own (bundled) copy of core lives for playback.
+ * Overwriting it there breaks playback (its `$:` needs that copy's Pattern methods).
+ */
+function ensureScope(): Promise<CheckScope> {
   // @strudel/tonal is intentionally left out: checks don't need it until Module 4.
-  scopeReady ??= evalScope(import('@strudel/core'), import('@strudel/mini'));
+  scopeReady ??= Promise.all([import('@strudel/core'), import('@strudel/mini')]).then((modules) => {
+    const scope = new Map<string, unknown>();
+    for (const mod of modules) {
+      for (const [name, value] of Object.entries(mod as object) as [string, unknown][]) {
+        if (IDENTIFIER.test(name) && !RESERVED.has(name)) scope.set(name, value);
+      }
+    }
+    return { names: [...scope.keys()], values: [...scope.values()] };
+  });
   return scopeReady;
 }
 
 export async function compileForCheck(expression: string): Promise<Pattern> {
-  await ensureScope();
-  const { pattern } = await evaluate(expression);
-  return pattern;
+  const { names, values } = await ensureScope();
+  const { output } = transpiler(expression, {
+    wrapAsync: false,
+    addReturn: true,
+    emitMiniLocations: false,
+    emitWidgets: false,
+  });
+  // The transpiled body only refers to names in the scope (it is our own generated code).
+  // eslint-disable-next-line @typescript-eslint/no-implied-eval
+  const run = new Function(...names, `"use strict";\n${output}`) as (...args: unknown[]) => Pattern;
+  return run(...values);
 }
 
 export function onsets(p: Pattern, cycles: number): Onset[] {

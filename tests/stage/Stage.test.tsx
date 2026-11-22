@@ -7,6 +7,7 @@ function makeProps(overrides: Partial<StageProps> = {}): StageProps {
     checklist: { title: 'Lesson', labels: ['A', 'B'], current: 0, completed: 0 },
     otto: { beatPhase: () => 0, level: () => 0, mood: 'idle' },
     bubble: { lines: ['Hi there'], onDone: () => {} },
+    bubbleKey: 'one',
     scope: { analyser: () => null, mode: 'scope' },
     spectrumAvailable: false,
     playing: false,
@@ -96,5 +97,15 @@ describe('Stage', () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onRetryAudio).toHaveBeenCalledTimes(1);
+  });
+
+  it('replays identical lines when the bubble key changes', () => {
+    const onDone = vi.fn();
+    const bubble = { lines: ['Same'], onDone };
+    const { rerender } = render(<Stage {...makeProps({ bubble, bubbleKey: 'a' })} />);
+    rerender(<Stage {...makeProps({ bubble, bubbleKey: 'a' })} />);
+    expect(onDone).toHaveBeenCalledTimes(1);
+    rerender(<Stage {...makeProps({ bubble, bubbleKey: 'b' })} />);
+    expect(onDone).toHaveBeenCalledTimes(2);
   });
 });
