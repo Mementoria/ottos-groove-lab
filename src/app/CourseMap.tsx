@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { SONG_STYLES } from '../lessons/content/styles';
 import type { Lesson } from '../lessons/types';
 import { ArmGlyph } from '../otto/ArmGlyph';
@@ -37,10 +37,19 @@ export function CourseMap({ lessons, onOpen }: CourseMapProps) {
   const [saved, setSaved] = useState(loadState);
   const [confirming, setConfirming] = useState(false);
   const resetButton = useRef<HTMLButtonElement>(null);
+  const mapContent = useRef<HTMLDivElement>(null);
+  const wasConfirming = useRef(false);
+
+  // While the dialog is open, nothing behind it can be focused or clicked.
+  useLayoutEffect(() => {
+    mapContent.current?.toggleAttribute('inert', confirming);
+    // Focus can only return to the map once it is no longer inert.
+    if (wasConfirming.current && !confirming) resetButton.current?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);
 
   const closeDialog = () => {
     setConfirming(false);
-    resetButton.current?.focus();
   };
 
   const indexed = lessons.map((lesson, index) => ({ lesson, index }));
@@ -89,42 +98,44 @@ export function CourseMap({ lessons, onOpen }: CourseMapProps) {
 
   return (
     <main className="map">
-      <header className="map-header">
-        <h1 className="map-title">Otto&apos;s Groove Lab</h1>
-        <button
-          ref={resetButton}
-          type="button"
-          className="app-btn"
-          onClick={() => {
-            setConfirming(true);
-          }}
-        >
-          Reset progress
-        </button>
-      </header>
+      <div ref={mapContent}>
+        <header className="map-header">
+          <h1 className="map-title">Otto&apos;s Groove Lab</h1>
+          <button
+            ref={resetButton}
+            type="button"
+            className="app-btn"
+            onClick={() => {
+              setConfirming(true);
+            }}
+          >
+            Reset progress
+          </button>
+        </header>
 
-      {lessons.length === 0 ? (
-        <p className="map-empty">Lessons coming soon</p>
-      ) : (
-        MODULES.map(({ module, title }) => {
-          const entries = indexed.filter((e) => e.lesson.module === module);
-          const studio = module === STUDIO;
-          if (entries.length === 0 && !studio) return null;
-          const headingId = `map-module-${String(module)}`;
-          return (
-            <section key={headingId} className="map-module" aria-labelledby={headingId}>
-              <h2 id={headingId} className="map-module-title">
-                {title}
-              </h2>
-              <ul className="map-cards">
-                {studio
-                  ? studioCards(entries)
-                  : entries.map(({ lesson, index }) => lessonCard(lesson, index))}
-              </ul>
-            </section>
-          );
-        })
-      )}
+        {lessons.length === 0 ? (
+          <p className="map-empty">Lessons coming soon</p>
+        ) : (
+          MODULES.map(({ module, title }) => {
+            const entries = indexed.filter((e) => e.lesson.module === module);
+            const studio = module === STUDIO;
+            if (entries.length === 0 && !studio) return null;
+            const headingId = `map-module-${String(module)}`;
+            return (
+              <section key={headingId} className="map-module" aria-labelledby={headingId}>
+                <h2 id={headingId} className="map-module-title">
+                  {title}
+                </h2>
+                <ul className="map-cards">
+                  {studio
+                    ? studioCards(entries)
+                    : entries.map(({ lesson, index }) => lessonCard(lesson, index))}
+                </ul>
+              </section>
+            );
+          })
+        )}
+      </div>
 
       {confirming && (
         <ResetDialog
@@ -147,18 +158,41 @@ interface ResetDialogProps {
 
 function ResetDialog({ onCancel, onConfirm }: ResetDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     cancelRef.current?.focus();
   }, []);
 
+  // On the document, so Escape and Tab work wherever focus has wandered (e.g. to the body).
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onCancel();
+        return;
+      }
+      const dialog = dialogRef.current;
+      if (event.key !== 'Tab' || !dialog) return;
+      const buttons = [...dialog.querySelectorAll('button')];
+      const first = buttons[0];
+      const last = buttons.at(-1);
+      if (!first || !last) return;
+      const focused = document.activeElement;
+      // Wrap around at either end, and pull focus back in from anywhere else.
+      const edge = event.shiftKey ? first : last;
+      if (dialog.contains(focused) && focused !== edge) return;
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [onCancel]);
+
   return (
-    <div
-      className="dialog-backdrop"
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') onCancel();
-      }}
-    >
+    <div className="dialog-backdrop">
       <div
+        ref={dialogRef}
         className="dialog"
         role="dialog"
         aria-modal="true"
