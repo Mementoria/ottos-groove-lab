@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { gridToMini, toCheckExpression, toStrudelCode } from '../../src/program/codegen';
-import { bank, grid, layer, mod, muted, notes, osc, program, signal, sound } from '../../src/program/build';
+import {
+  bank,
+  grid,
+  layer,
+  mod,
+  muted,
+  notes,
+  osc,
+  program,
+  signal,
+  sound,
+} from '../../src/program/build';
 
 function stepsOn(...hits: number[]): boolean[] {
   return Array.from({ length: 16 }, (_, i) => hits.includes(i));

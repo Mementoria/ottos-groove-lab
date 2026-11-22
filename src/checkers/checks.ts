@@ -194,10 +194,11 @@ export function runCheck(check: Check, ctx: CheckContext): CheckResult {
       return outcome(has, has ? `has ${check.s}` : `no ${check.s}`);
     }
     case 'distinctNotes': {
-      const notes = new Set(
-        ctx.onsets.map((o) => o.value['note']).filter((v) => v !== undefined),
+      const notes = new Set(ctx.onsets.map((o) => o.value['note']).filter((v) => v !== undefined));
+      return outcome(
+        notes.size >= check.min,
+        `${String(notes.size)} distinct notes, need ${String(check.min)}`,
       );
-      return outcome(notes.size >= check.min, `${String(notes.size)} distinct notes, need ${String(check.min)}`);
     }
     case 'control':
       return runControl(check, ctx);

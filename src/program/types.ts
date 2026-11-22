@@ -4,10 +4,24 @@ export type NumArg =
   | { kind: 'number'; value: number }
   | { kind: 'signal'; signal: SignalName; min: number; max: number; slow: number };
 export type NumericModName =
-  | 'fast' | 'slow' | 'gain' | 'pan' | 'lpf' | 'lpq' | 'hpf'
-  | 'lpenv' | 'lpa' | 'lpd' | 'lps'
-  | 'attack' | 'decay' | 'sustain' | 'release'
-  | 'delay' | 'room' | 'distort';
+  | 'fast'
+  | 'slow'
+  | 'gain'
+  | 'pan'
+  | 'lpf'
+  | 'lpq'
+  | 'hpf'
+  | 'lpenv'
+  | 'lpa'
+  | 'lpd'
+  | 'lps'
+  | 'attack'
+  | 'decay'
+  | 'sustain'
+  | 'release'
+  | 'delay'
+  | 'room'
+  | 'distort';
 export type Modifier =
   | { id: string; name: NumericModName; arg: NumArg }
   | { id: string; name: 's'; value: Oscillator }

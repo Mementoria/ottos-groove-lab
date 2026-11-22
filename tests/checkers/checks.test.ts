@@ -69,26 +69,42 @@ describe('runCheck', () => {
 
   it('onsetsPerCycle counts matching cycle-0 onsets', async () => {
     const hats = layer(sound('hh*8'));
-    expect(await passes({ kind: 'onsetsPerCycle', where: { s: 'hh' }, count: 8 }, 120, kick, hats)).toBe(true);
-    expect(await passes({ kind: 'onsetsPerCycle', where: { s: 'bd' }, count: 8 }, 120, kick, hats)).toBe(false);
-    expect(await passes({ kind: 'onsetsPerCycle', where: {}, count: 12 }, 120, kick, hats)).toBe(true);
+    expect(
+      await passes({ kind: 'onsetsPerCycle', where: { s: 'hh' }, count: 8 }, 120, kick, hats),
+    ).toBe(true);
+    expect(
+      await passes({ kind: 'onsetsPerCycle', where: { s: 'bd' }, count: 8 }, 120, kick, hats),
+    ).toBe(false);
+    expect(await passes({ kind: 'onsetsPerCycle', where: {}, count: 12 }, 120, kick, hats)).toBe(
+      true,
+    );
   });
 
   it('where can match on bank', async () => {
     const check: Check = { kind: 'onsetsPerCycle', where: { bank: 'RolandTR909' }, count: 4 };
-    expect(await passes(check, 120, layer(grid('bd', [0, 4, 8, 12]), bank('RolandTR909')))).toBe(true);
+    expect(await passes(check, 120, layer(grid('bd', [0, 4, 8, 12]), bank('RolandTR909')))).toBe(
+      true,
+    );
     expect(await passes(check, 120, kick)).toBe(false);
   });
 
   it('onsetsAt requires exactly these steps', async () => {
-    expect(await passes({ kind: 'onsetsAt', where: { s: 'bd' }, steps: [0, 4, 8, 12] }, 120, kick)).toBe(true);
-    expect(await passes({ kind: 'onsetsAt', where: { s: 'bd' }, steps: [0, 8] }, 120, kick)).toBe(false);
-    expect(await passes({ kind: 'onsetsAt', where: { s: 'bd' }, steps: [0, 4, 8, 12, 14] }, 120, kick)).toBe(false);
+    expect(
+      await passes({ kind: 'onsetsAt', where: { s: 'bd' }, steps: [0, 4, 8, 12] }, 120, kick),
+    ).toBe(true);
+    expect(await passes({ kind: 'onsetsAt', where: { s: 'bd' }, steps: [0, 8] }, 120, kick)).toBe(
+      false,
+    );
+    expect(
+      await passes({ kind: 'onsetsAt', where: { s: 'bd' }, steps: [0, 4, 8, 12, 14] }, 120, kick),
+    ).toBe(false);
   });
 
   it('onsetsAt fails on off-grid matching onsets', async () => {
     const triplet = layer(sound('bd*3'));
-    expect(await passes({ kind: 'onsetsAt', where: { s: 'bd' }, steps: [0, 5, 11] }, 120, triplet)).toBe(false);
+    expect(
+      await passes({ kind: 'onsetsAt', where: { s: 'bd' }, steps: [0, 5, 11] }, 120, triplet),
+    ).toBe(false);
   });
 
   it('hasSound looks for the sound name', async () => {
@@ -117,7 +133,9 @@ describe('runCheck', () => {
     const l = layer(notes('c2 eb2'), osc('sawtooth'), ftype('ladder'));
     expect(await passes({ kind: 'control', control: 's', equals: 'sawtooth' }, 120, l)).toBe(true);
     expect(await passes({ kind: 'control', control: 's', equals: 'square' }, 120, l)).toBe(false);
-    expect(await passes({ kind: 'control', control: 'ftype', equals: 'ladder' }, 120, l)).toBe(true);
+    expect(await passes({ kind: 'control', control: 'ftype', equals: 'ladder' }, 120, l)).toBe(
+      true,
+    );
   });
 
   it('control requires every matching onset to satisfy, and honours where', async () => {
@@ -129,11 +147,7 @@ describe('runCheck', () => {
   });
 
   it('controlVaries passes on a sweeping lpf and fails on a constant one', async () => {
-    const sweep = layer(
-      notes('c2 eb2'),
-      osc('sawtooth'),
-      mod('lpf', signal('sine', 200, 2000, 4)),
-    );
+    const sweep = layer(notes('c2 eb2'), osc('sawtooth'), mod('lpf', signal('sine', 200, 2000, 4)));
     const flat = layer(notes('c2 eb2'), osc('sawtooth'), mod('lpf', 800));
     const check: Check = { kind: 'controlVaries', control: 'lpf', cycles: 4, minSpread: 500 };
     expect(await passes(check, 120, sweep)).toBe(true);
