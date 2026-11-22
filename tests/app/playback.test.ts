@@ -199,3 +199,26 @@ describe('createPlayback: a pending Play', () => {
     expect(engine.isPlaying()).toBe(true);
   });
 });
+
+describe('createPlayback: onEvaluated', () => {
+  it('reports every evaluation, including one whose result is superseded', async () => {
+    const { engine, hold } = sharedEngine(new Set(['b']));
+    const gate = hold('a');
+    const settled = vi.fn();
+    const evaluatedCodes: string[] = [];
+    const playback = createPlayback(engine, settled, (code, info) => {
+      evaluatedCodes.push(`${code}:${info === null ? 'failed' : 'ok'}`);
+    });
+    playback.play('a');
+    await flush();
+    playback.update('b');
+
+    gate.resolve(null);
+    await flush();
+
+    expect(evaluatedCodes).toEqual(['a:ok', 'b:failed']);
+    // Only the latest result is reported.
+    expect(settled).toHaveBeenCalledTimes(1);
+    expect(settled).toHaveBeenCalledWith('b', null, null, false);
+  });
+});

@@ -49,7 +49,14 @@ function withEngineLock<T>(engine: AudioEngine, run: () => Promise<T>): Promise<
  * only one is ever in flight; edits that arrive meanwhile collapse into one follow-up with the
  * latest code, and only the result of the latest code is reported.
  */
-export function createPlayback(engine: AudioEngine, onSettled: OnSettled): Playback {
+/** Called for every evaluation that ran, even one whose result is superseded and not reported. */
+export type OnEvaluated = (code: string, info: EvalInfo | null) => void;
+
+export function createPlayback(
+  engine: AudioEngine,
+  onSettled: OnSettled,
+  onEvaluated: OnEvaluated = () => {},
+): Playback {
   let busy = false;
   let disposed = false;
   let next: { code: string; play: boolean } | null = null;
@@ -96,6 +103,8 @@ export function createPlayback(engine: AudioEngine, onSettled: OnSettled): Playb
           return { info: result, evalError: error };
         });
         if (isDisposed()) return;
+        // What the engine now holds changes with every evaluation, reported or not.
+        onEvaluated(code, info);
         if (wantPlaying && !engine.isPlaying()) {
           // A Play that failed hands its intent to the edit queued behind it (a fix, say).
           // Otherwise play with nothing to play, or an edit down to silence, ends the intent.

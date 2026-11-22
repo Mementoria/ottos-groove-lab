@@ -851,6 +851,43 @@ describe('useLessonSession: hear the goal', () => {
     expect(hook.result.current.playing).toBe(false);
   });
 
+  it('keeps the learner’s restored sound when a later queued edit fails', async () => {
+    const restoredCode = program(null, layer(sound('bd sd')));
+    const brokenCode = program(null, layer(sound('bd [sd')));
+    const { engine, hook } = setup();
+    act(() => {
+      hook.result.current.play();
+    });
+    await flush();
+    act(() => {
+      hook.result.current.toggleTarget();
+    });
+    await flush();
+
+    // A (valid) is still evaluating when B (broken) queues behind it.
+    const restoreA = deferred<EvalInfo | null>();
+    engine.update.mockReturnValueOnce(restoreA.promise).mockResolvedValueOnce(null);
+    act(() => {
+      hook.result.current.onBlocksChange(change(restoredCode));
+    });
+    await flush();
+    act(() => {
+      hook.result.current.onBlocksChange(change(brokenCode));
+    });
+    await advance(100);
+    await flush();
+    const stopsBefore = engine.stop.mock.calls.length;
+
+    // A installs the learner's pattern; its result is superseded by B, which then fails.
+    restoreA.resolve(evaluated);
+    await flush();
+
+    expect(engine.update).toHaveBeenLastCalledWith(toStrudelCode(brokenCode).code);
+    expect(engine.stop.mock.calls.length).toBe(stopsBefore);
+    expect(engine.isPlaying()).toBe(true);
+    expect(hook.result.current.playing).toBe(true);
+  });
+
   it('keeps playing when the learner’s edit back from the goal evaluates', async () => {
     const edited = program(null, layer(sound('bd sd')));
     const { engine, hook } = setup();

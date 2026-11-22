@@ -217,7 +217,7 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
 
   const listeners = new Set<() => void>();
   /** Replaced on every attach: a detached session's playback is disposed for good. */
-  let playback: Playback = createPlayback(engine, onSettled);
+  let playback: Playback = createPlayback(engine, onSettled, onEvaluated);
   let snapshot = toSnapshot();
 
   function toSnapshot(): LessonSessionState {
@@ -281,14 +281,17 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
   /** Bumped whenever a pending typo lookup stops being wanted. */
   let typoSeq = 0;
 
+  /** Every evaluation, superseded or not, changes which pattern the engine holds. */
+  function onEvaluated(code: string, info: EvalInfo | null): void {
+    const goal = targetCode !== null && code === targetCode;
+    if (info !== null) installed = goal ? 'goal' : 'learner';
+    else if (goal) installed = installedBeforeGoal;
+  }
+
   function onSettled(...[code, info, error, played]: Parameters<OnSettled>): void {
     if (!attached) return;
     const goal = targetCode !== null && code === targetCode;
-    if (info !== null) {
-      installed = goal ? 'goal' : 'learner';
-    } else if (goal) {
-      installed = installedBeforeGoal;
-    } else if (installed === 'goal' && engine.isPlaying()) {
+    if (info === null && !goal && installed === 'goal' && engine.isPlaying()) {
       // The learner's code didn't evaluate, so what is sounding is still the goal: stop it.
       playback.stop();
     }
@@ -574,7 +577,7 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
     getSnapshot: () => snapshot,
     attach() {
       attached = true;
-      playback = createPlayback(engine, onSettled);
+      playback = createPlayback(engine, onSettled, onEvaluated);
       tickTimer = setInterval(() => {
         dispatch({ type: 'tick', now: now() });
       }, TICK_MS);
