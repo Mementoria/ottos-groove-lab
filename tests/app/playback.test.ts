@@ -112,6 +112,24 @@ describe('createPlayback across sessions sharing one engine', () => {
     expect(calls).not.toContain('play:a2');
   });
 
+  it('never evaluates work a session queued on the lock before it was disposed', async () => {
+    const { engine, calls, hold } = sharedEngine();
+    const gate = hold('a');
+    const holder = createPlayback(engine, () => {});
+    holder.play('a');
+    await flush();
+    const waiting = createPlayback(engine, () => {});
+    waiting.play('b');
+    await flush();
+
+    waiting.dispose();
+    gate.resolve(null);
+    await flush();
+
+    expect(calls).not.toContain('play:b');
+    expect(calls).not.toContain('update:b');
+  });
+
   it('reports nothing after dispose', async () => {
     const { engine, hold } = sharedEngine();
     const gate = hold('x');

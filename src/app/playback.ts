@@ -77,6 +77,8 @@ export function createPlayback(engine: AudioEngine, onSettled: OnSettled): Playb
       for (let job = take(); job !== null && !isDisposed(); job = take()) {
         const { code, play } = job;
         const { info, evalError } = await withEngineLock(engine, async () => {
+          // Disposed while waiting for the lock: don't make the next session wait on it too.
+          if (isDisposed()) return { info: null, evalError: null };
           const couldStart = play || engine.isPlaying();
           let result: EvalInfo | null = null;
           let error: Error | null = null;
