@@ -465,13 +465,22 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
     if (changed.length > 0) highlightBus.emit({ nodeIds: changed });
     cheer();
     returnToLearner();
-    persist((s) => ({
-      ...s,
-      lessonProgress: {
-        ...s.lessonProgress,
-        [lesson.id]: { stepIndex: next.stepIndex, completed: next.completed },
-      },
-    }));
+    const nextStart = next.completed ? undefined : lesson.steps[next.stepIndex]?.start;
+    persist((s) => {
+      // A step with its own start replaces the workspace: drop the old one in the same save, so
+      // a reload restores that start rather than this step's blocks under the next step.
+      const workspaces = nextStart
+        ? Object.fromEntries(Object.entries(s.workspaces).filter(([id]) => id !== lesson.id))
+        : s.workspaces;
+      return {
+        ...s,
+        lessonProgress: {
+          ...s.lessonProgress,
+          [lesson.id]: { stepIndex: next.stepIndex, completed: next.completed },
+        },
+        workspaces,
+      };
+    });
 
     const success = finished ? [finished.success] : [];
     if (next.completed) {

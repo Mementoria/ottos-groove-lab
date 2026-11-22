@@ -672,11 +672,27 @@ describe('useLessonSession: steps, hints and success', () => {
     expect(hook.result.current.loadRequest?.program).toBe(JAM_START);
     expect(hook.result.current.loadRequest?.keepUndo).toBe(false);
     expect(loadState().lessonProgress['fixture']).toEqual({ stepIndex: 1, completed: false });
-    expect(loadState().workspaces['fixture']).toEqual({ mine: 1 });
+    // The next step has its own start: the old workspace is dropped with the same save, so a
+    // reload restores that start, never the new step with the old step's blocks.
+    expect(loadState().workspaces['fixture']).toBeUndefined();
 
     await advance(5_000);
     expect(hook.result.current.cheering).toBe(false);
     unsubscribe();
+  });
+
+  it('keeps the learner’s workspace when the next step has no start of its own', async () => {
+    const { hook } = setup({ course: fixtureWith([TWO_ARMS, { ...JAM, start: undefined }]) });
+    act(() => {
+      hook.result.current.onBlocksChange(change(SOLUTION, { mine: 1 }));
+    });
+    await advance(100);
+    await flush();
+
+    expect(hook.result.current.runner.stepIndex).toBe(1);
+    expect(hook.result.current.loadRequest).toBeNull();
+    expect(loadState().lessonProgress['fixture']).toEqual({ stepIndex: 1, completed: false });
+    expect(loadState().workspaces['fixture']).toEqual({ mine: 1 });
   });
 
   it('completes the lesson from a manual step and records it', async () => {
