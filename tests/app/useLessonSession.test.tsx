@@ -5,7 +5,7 @@ import { SHOW_ME_LINE, TYPO_LINE, useLessonSession } from '../../src/app/useLess
 import type { AudioEngine, EvalInfo } from '../../src/audio/engine';
 import type { CheckContext } from '../../src/checkers/checks';
 import { IDLE_MS } from '../../src/lessons/runner';
-import type { Lesson } from '../../src/lessons/types';
+import type { Lesson, Step } from '../../src/lessons/types';
 import { highlightBus, type Highlight } from '../../src/otto/highlightBus';
 import { layer, program, sound } from '../../src/program/build';
 import { toStrudelCode } from '../../src/program/codegen';
@@ -65,7 +65,12 @@ function fakeEngine(): FakeEngine & { setPlayDelay: (d: Deferred<null>) => void 
       playing = true;
       return evaluated;
     }),
-    update: vi.fn<(code: string) => Promise<EvalInfo | null>>(() => Promise.resolve(null)),
+    // As the real engine: plays only if already playing, and silence evaluates to nothing.
+    update: vi.fn((code: string): Promise<EvalInfo | null> => {
+      if (code.trim() !== '') return Promise.resolve(evaluated);
+      playing = false;
+      return Promise.resolve(null);
+    }),
     stop: vi.fn(() => {
       playing = false;
     }),
@@ -99,43 +104,51 @@ const SOLUTION = program(null, layer(sound('bd')), layer(sound('hh*8')));
 const TARGET = program(null, layer(sound('bd*2')), layer(sound('hh*8')));
 const JAM_START = program(120, layer(sound('bd*4')));
 
+const TWO_ARMS: Step = {
+  id: 'two-arms',
+  label: 'Two arms',
+  type: 'puzzle',
+  say: ['Add a second arm.'],
+  start: START,
+  check: { kind: 'layers', min: 2 },
+  hints: [
+    { say: 'How many arms do you have?' },
+    { say: 'Grab another arm block.', highlight: { blockTypes: ['ogl_layer'] } },
+  ],
+  solution: SOLUTION,
+  target: TARGET,
+  success: 'Two arms!',
+};
+
+const JAM: Step = {
+  id: 'jam',
+  label: 'Jam',
+  type: 'open',
+  say: ['Play with it.'],
+  start: JAM_START,
+  check: { kind: 'manual' },
+  hints: [{ say: 'Anything goes.' }, { say: 'Really.' }],
+  solution: JAM_START,
+  success: 'Lovely.',
+};
+
+/** The fixture lesson with other steps. */
+function fixtureWith(steps: Step[]): Lesson[] {
+  return [
+    {
+      id: 'fixture',
+      module: 0,
+      title: 'Fixture',
+      unlocks: ['ogl_layer', 'ogl_sound'],
+      codePane: 'collapsed',
+      spectrum: false,
+      steps,
+    },
+  ];
+}
+
 const course: Lesson[] = [
-  {
-    id: 'fixture',
-    module: 0,
-    title: 'Fixture',
-    unlocks: ['ogl_layer', 'ogl_sound'],
-    codePane: 'collapsed',
-    spectrum: false,
-    steps: [
-      {
-        id: 'two-arms',
-        label: 'Two arms',
-        type: 'puzzle',
-        say: ['Add a second arm.'],
-        start: START,
-        check: { kind: 'layers', min: 2 },
-        hints: [
-          { say: 'How many arms do you have?' },
-          { say: 'Grab another arm block.', highlight: { blockTypes: ['ogl_layer'] } },
-        ],
-        solution: SOLUTION,
-        target: TARGET,
-        success: 'Two arms!',
-      },
-      {
-        id: 'jam',
-        label: 'Jam',
-        type: 'open',
-        say: ['Play with it.'],
-        start: JAM_START,
-        check: { kind: 'manual' },
-        hints: [{ say: 'Anything goes.' }, { say: 'Really.' }],
-        solution: JAM_START,
-        success: 'Lovely.',
-      },
-    ],
-  },
+  ...fixtureWith([TWO_ARMS, JAM]),
   {
     id: 'second',
     module: 0,
@@ -155,10 +168,16 @@ function change(p: Program, state: object = { saved: true }) {
   return { program: p, warnings: [], state };
 }
 
-function setup(overrides: { engine?: FakeEngine; debounceMs?: number } = {}) {
+function setup(overrides: { engine?: FakeEngine; debounceMs?: number; course?: Lesson[] } = {}) {
   const engine = overrides.engine ?? fakeEngine();
+  const lessons = overrides.course ?? course;
   const hook = renderHook(() =>
-    useLessonSession(0, { engine, now, debounceMs: overrides.debounceMs ?? 100, course }),
+    useLessonSession(0, {
+      engine,
+      now,
+      debounceMs: overrides.debounceMs ?? 100,
+      course: lessons,
+    }),
   );
   return { engine, hook };
 }
@@ -737,6 +756,80 @@ describe('useLessonSession: hear the goal', () => {
     await flush();
     expect(hook.result.current.targetPlaying).toBe(false);
     expect(hook.result.current.playing).toBe(false);
+  });
+
+  it('does not count the goal, still sounding, as the learner playing', async () => {
+    const playingTwoArms: Step = {
+      ...TWO_ARMS,
+      check: { kind: 'all', checks: [{ kind: 'playing' }, { kind: 'layers', min: 2 }] },
+    };
+    const { engine, hook } = setup({ course: fixtureWith([playingTwoArms, JAM]) });
+    act(() => {
+      hook.result.current.play();
+    });
+    await flush();
+    act(() => {
+      hook.result.current.toggleTarget();
+    });
+    await flush();
+
+    const restore = deferred<EvalInfo | null>();
+    engine.update.mockReturnValueOnce(restore.promise);
+    act(() => {
+      hook.result.current.onBlocksChange(change(SOLUTION));
+    });
+    await advance(100);
+    await flush();
+    // The goal's pattern is still the one sounding.
+    expect(buildContextMock).toHaveBeenLastCalledWith(SOLUTION, false);
+    expect(hook.result.current.runner.stepIndex).toBe(0);
+
+    restore.resolve(evaluated);
+    await flush();
+    expect(buildContextMock).toHaveBeenLastCalledWith(SOLUTION, true);
+    expect(hook.result.current.runner.stepIndex).toBe(1);
+  });
+
+  it('stops the goal when the learner’s edit back from it fails to evaluate', async () => {
+    const { engine, hook } = setup();
+    act(() => {
+      hook.result.current.play();
+    });
+    await flush();
+    act(() => {
+      hook.result.current.toggleTarget();
+    });
+    await flush();
+
+    // A typo: the engine keeps its last pattern, which is the goal's.
+    engine.update.mockResolvedValueOnce(null);
+    act(() => {
+      hook.result.current.onBlocksChange(change(program(null, layer(sound('bd [sd')))));
+    });
+    await flush();
+    expect(engine.isPlaying()).toBe(false);
+    expect(hook.result.current.playing).toBe(false);
+  });
+
+  it('keeps playing when the learner’s edit back from the goal evaluates', async () => {
+    const edited = program(null, layer(sound('bd sd')));
+    const { engine, hook } = setup();
+    act(() => {
+      hook.result.current.play();
+    });
+    await flush();
+    act(() => {
+      hook.result.current.toggleTarget();
+    });
+    await flush();
+
+    act(() => {
+      hook.result.current.onBlocksChange(change(edited));
+    });
+    await flush();
+    expect(engine.update).toHaveBeenLastCalledWith(toStrudelCode(edited).code);
+    expect(engine.isPlaying()).toBe(true);
+    expect(hook.result.current.playing).toBe(true);
   });
 
   it('toggling again keeps the learner playing if they were', async () => {

@@ -143,6 +143,8 @@ function persist(update: (s: SavedState) => SavedState): void {
 
 /* ---------- the session ---------- */
 
+type Installed = 'learner' | 'goal' | null;
+
 interface Internal {
   runner: RunnerState;
   program: Program;
@@ -267,6 +269,13 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
   let learnerWasPlaying = false;
   /** The goal's code while it is on. */
   let targetCode: string | null = null;
+  /**
+   * Whose pattern the engine has installed. The goal counts from when it is sent until a learner
+   * evaluation succeeds: Strudel keeps the last pattern that evaluated.
+   */
+  let installed: Installed = null;
+  /** What was installed before the goal was sent, for when the goal fails to evaluate. */
+  let installedBeforeGoal: Installed = null;
   /** The program the current step began with, for the success glow. */
   let baseline: Program | null = startProgram;
   /** Bumped whenever a pending typo lookup stops being wanted. */
@@ -274,8 +283,17 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
 
   function onSettled(...[code, info, error, played]: Parameters<OnSettled>): void {
     if (!attached) return;
+    const goal = targetCode !== null && code === targetCode;
+    if (info !== null) {
+      installed = goal ? 'goal' : 'learner';
+    } else if (goal) {
+      installed = installedBeforeGoal;
+    } else if (installed === 'goal' && engine.isPlaying()) {
+      // The learner's code didn't evaluate, so what is sounding is still the goal: stop it.
+      playback.stop();
+    }
     // A goal that won't evaluate hands back to the learner rather than claiming to play.
-    if (state.targetPlaying && code === targetCode && info === null) returnToLearner();
+    if (state.targetPlaying && goal && info === null) returnToLearner();
     set({ evaluated: { code, info } });
     noteTypo(code, error, played);
     // `playing` may have just turned true, which a check can depend on.
@@ -284,8 +302,9 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
 
   const currentStep = (): Step | undefined => lesson.steps[state.runner.stepIndex];
 
-  /** Whether sound is the learner's: the goal playing doesn't count for the "playing" check. */
-  const learnerPlaying = (): boolean => engine.isPlaying() && !state.targetPlaying;
+  /** Whether sound is the learner's: the goal playing (or still installed) doesn't count. */
+  const learnerPlaying = (): boolean =>
+    engine.isPlaying() && !state.targetPlaying && installed === 'learner';
 
   function checkKey(): string {
     const { runner, program, generated } = state;
@@ -493,6 +512,8 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
       if (!target || state.runner.completed) return;
       learnerWasPlaying = playback.wantsPlaying();
       targetCode = toStrudelCode(target).code;
+      installedBeforeGoal = installed;
+      installed = 'goal';
       sentCode = targetCode;
       playback.play(sentCode);
       set({ targetPlaying: true });
