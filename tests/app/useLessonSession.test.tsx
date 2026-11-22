@@ -879,6 +879,46 @@ describe('useLessonSession: hear the goal', () => {
     expect(hook.result.current.playing).toBe(false);
   });
 
+  it('a goal that fails after the learner’s restore succeeded leaves the learner’s sound alone', async () => {
+    const restoredCode = program(null, layer(sound('bd sd')));
+    const brokenCode = program(null, layer(sound('bd [sd')));
+    const engine = fakeEngine();
+    const { hook } = setup({ engine });
+    act(() => {
+      hook.result.current.play();
+    });
+    await flush();
+    act(() => {
+      hook.result.current.toggleTarget();
+    });
+    await flush();
+
+    // The learner leaves the goal; their restore is still evaluating when they ask for the goal
+    // again, and that goal then fails to evaluate.
+    const restore = deferred<EvalInfo | null>();
+    engine.update.mockReturnValueOnce(restore.promise);
+    act(() => {
+      hook.result.current.onBlocksChange(change(restoredCode));
+    });
+    await flush();
+    engine.play.mockResolvedValueOnce(null);
+    act(() => {
+      hook.result.current.toggleTarget();
+    });
+    restore.resolve(evaluated);
+    await flush();
+    expect(engine.isPlaying()).toBe(true);
+
+    // Now a typo: the engine keeps the learner's restored pattern, which must keep sounding.
+    engine.update.mockResolvedValueOnce(null);
+    act(() => {
+      hook.result.current.onBlocksChange(change(brokenCode));
+    });
+    await advance(100);
+    await flush();
+    expect(engine.isPlaying()).toBe(true);
+  });
+
   it('keeps the learner’s restored sound when a later queued edit fails', async () => {
     const restoredCode = program(null, layer(sound('bd sd')));
     const brokenCode = program(null, layer(sound('bd [sd')));

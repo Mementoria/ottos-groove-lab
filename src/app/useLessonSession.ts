@@ -270,12 +270,12 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
   /** The goal's code while it is on. */
   let targetCode: string | null = null;
   /**
-   * Whose pattern the engine has installed. The goal counts from when it is sent until a learner
-   * evaluation succeeds: Strudel keeps the last pattern that evaluated.
+   * Whose pattern the engine holds. Strudel keeps the last pattern that evaluated, so this
+   * changes only when an evaluation succeeds; a failed one leaves it as it was. While the goal is
+   * still loading, the learner's last pattern is what's sounding (and the `playing` check ignores
+   * sound anyway while the goal is on).
    */
   let installed: Installed = null;
-  /** What was installed before the goal was sent, for when the goal fails to evaluate. */
-  let installedBeforeGoal: Installed = null;
   /** The program the current step began with, for the success glow. */
   let baseline: Program | null = startProgram;
   /** Bumped whenever a pending typo lookup stops being wanted. */
@@ -284,7 +284,6 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
   /** Every evaluation, superseded or not, changes which pattern the engine holds. */
   function onEvaluated(_code: string, info: EvalInfo | null, owner: PlaybackOwner): void {
     if (info !== null) installed = owner;
-    else if (owner === 'goal') installed = installedBeforeGoal;
   }
 
   function onSettled(...[code, info, error, played, owner]: Parameters<OnSettled>): void {
@@ -546,8 +545,6 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
       if (!target || state.runner.completed) return;
       learnerWasPlaying = playback.wantsPlaying();
       targetCode = toStrudelCode(target).code;
-      installedBeforeGoal = installed;
-      installed = 'goal';
       sentCode = targetCode;
       playback.play(sentCode, 'goal');
       set({ targetPlaying: true });
