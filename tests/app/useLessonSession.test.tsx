@@ -902,11 +902,15 @@ describe('useLessonSession: hear the goal', () => {
     });
     await flush();
     engine.play.mockResolvedValueOnce(null);
+    // The automatic re-send of the learner's code after the goal fails fails too, so nothing
+    // overwrites a stale owner before the typo below.
+    engine.update.mockResolvedValueOnce(null);
     act(() => {
       hook.result.current.toggleTarget();
     });
     restore.resolve(evaluated);
     await flush();
+    expect(engine.update).toHaveBeenCalledTimes(2);
     expect(engine.isPlaying()).toBe(true);
 
     // Now a typo: the engine keeps the learner's restored pattern, which must keep sounding.
