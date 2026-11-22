@@ -13,7 +13,10 @@ const MOUTH_CLOSED = 'M55 66 Q65 74 75 66';
 const MOUTH_OPEN = 'M55 66 Q65 80 75 66';
 
 function prefersReducedMotion(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return (
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 }
 
 export function Otto({ beatPhase, level, mood }: OttoProps) {
@@ -53,7 +56,10 @@ export function Otto({ beatPhase, level, mood }: OttoProps) {
 
       for (let i = 0; i < TENTACLE_COUNT; i += 1) {
         // Reduced motion: hold a near-still pose (minimum amplitude, no phase travel).
-        tentacleRefs.current[i]?.setAttribute('d', tentaclePath(i, reduced ? 0 : phase, lvl, raise));
+        tentacleRefs.current[i]?.setAttribute(
+          'd',
+          tentaclePath(i, reduced ? 0 : phase, lvl, raise),
+        );
       }
       const bob = reduced ? 0 : bobOffset(phase, lvl) * (m === 'talking' ? 1 : 0.6);
       bodyRef.current?.setAttribute('transform', `translate(0 ${(-bob - jump).toFixed(2)})`);
@@ -95,7 +101,14 @@ export function Otto({ beatPhase, level, mood }: OttoProps) {
         <circle cx="77" cy="50" r="8" fill="#fff" />
         <circle cx="55" cy="51" r="4" fill="#222" />
         <circle cx="79" cy="51" r="4" fill="#222" />
-        <path ref={mouthRef} d={MOUTH_CLOSED} stroke="#5a2a78" strokeWidth="3" fill="none" strokeLinecap="round" />
+        <path
+          ref={mouthRef}
+          d={MOUTH_CLOSED}
+          stroke="#5a2a78"
+          strokeWidth="3"
+          fill="none"
+          strokeLinecap="round"
+        />
         <rect x="36" y="16" width="58" height="8" rx="4" fill="#333" />
         <circle cx="36" cy="30" r="8" fill="#333" />
         <circle cx="94" cy="30" r="8" fill="#333" />

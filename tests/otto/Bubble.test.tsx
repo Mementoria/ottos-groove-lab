@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Bubble } from '../../src/otto/Bubble';
@@ -35,7 +36,9 @@ describe('Bubble', () => {
 
   it('calls onDone on mount for a single line and shows its actions', () => {
     const onDone = vi.fn();
-    render(<Bubble lines={['Only']} onDone={onDone} actions={[{ label: 'Go', onClick: () => {} }]} />);
+    render(
+      <Bubble lines={['Only']} onDone={onDone} actions={[{ label: 'Go', onClick: () => {} }]} />,
+    );
     expect(onDone).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button', { name: 'Go' })).toBeInTheDocument();
   });
@@ -61,5 +64,26 @@ describe('Bubble', () => {
     rerender(<Bubble lines={['B1', 'B2']} onDone={() => {}} />);
     expect(screen.getByText('B1')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument();
+  });
+
+  it('calls onDone once under StrictMode for a single line', () => {
+    const onDone = vi.fn();
+    render(
+      <StrictMode>
+        <Bubble lines={['Only']} onDone={onDone} />
+      </StrictMode>,
+    );
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not reset or re-fire when re-rendered with equal-content lines', async () => {
+    const user = userEvent.setup();
+    const onDone = vi.fn();
+    const { rerender } = render(<Bubble lines={['A', 'B']} onDone={onDone} />);
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(onDone).toHaveBeenCalledTimes(1);
+    rerender(<Bubble lines={['A', 'B']} onDone={onDone} />);
+    expect(screen.getByText('B')).toBeInTheDocument();
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 });

@@ -8,21 +8,21 @@ export interface BubbleProps {
 
 /** Turns `**x**` into <code>x</code>; everything else stays plain text (never HTML). */
 function renderLine(line: string): ReactNode[] {
-  return line.split('**').map((part, i) =>
-    i % 2 === 1 ? <code key={i}>{part}</code> : part,
-  );
+  return line.split('**').map((part, i) => (i % 2 === 1 ? <code key={i}>{part}</code> : part));
 }
 
 export function Bubble({ lines, onDone, actions }: BubbleProps) {
   const [index, setIndex] = useState(0);
-  const [prevLines, setPrevLines] = useState(lines);
+  const linesKey = lines.join('\u0000');
+  const [prevKey, setPrevKey] = useState(linesKey);
+  const firedKey = useRef<string | null>(null);
   const onDoneRef = useRef(onDone);
   useEffect(() => {
     onDoneRef.current = onDone;
   }, [onDone]);
 
-  if (prevLines !== lines) {
-    setPrevLines(lines);
+  if (prevKey !== linesKey) {
+    setPrevKey(linesKey);
     setIndex(0);
   }
 
@@ -30,14 +30,19 @@ export function Bubble({ lines, onDone, actions }: BubbleProps) {
   const atEnd = index >= last;
 
   useEffect(() => {
-    if (atEnd) onDoneRef.current();
-  }, [atEnd, lines]);
+    // Guarded per content so StrictMode's double effect run and equal-content re-renders fire once.
+    if (atEnd && firedKey.current !== linesKey) {
+      firedKey.current = linesKey;
+      onDoneRef.current();
+    }
+  }, [atEnd, linesKey]);
 
   return (
     <div className="otto-bubble" role="status" aria-live="polite">
       <p className="otto-bubble-line">{renderLine(lines[Math.min(index, last)] ?? '')}</p>
       {atEnd ? (
-        actions && actions.length > 0 && (
+        actions &&
+        actions.length > 0 && (
           <div className="otto-bubble-actions">
             {actions.map((a) => (
               <button key={a.label} type="button" onClick={a.onClick}>
@@ -47,9 +52,14 @@ export function Bubble({ lines, onDone, actions }: BubbleProps) {
           </div>
         )
       ) : (
-        <button type="button" className="otto-bubble-next" aria-label="Next" onClick={() => {
+        <button
+          type="button"
+          className="otto-bubble-next"
+          aria-label="Next"
+          onClick={() => {
             setIndex(index + 1);
-          }}>
+          }}
+        >
           →
         </button>
       )}
