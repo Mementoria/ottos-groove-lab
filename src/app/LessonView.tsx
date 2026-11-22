@@ -95,7 +95,7 @@ export function LessonView({ engine, lessons, index, onBack, onNext }: LessonVie
         hasTarget={!runner.completed && step?.target !== undefined}
         targetPlaying={session.targetPlaying}
         onToggleTarget={session.toggleTarget}
-        engineError={status === 'error' ? 'The sounds could not load.' : null}
+        engineError={status === 'error'}
         soundsLoading={status === 'loading'}
         onRetryAudio={() => {
           void engine.start();

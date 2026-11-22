@@ -21,7 +21,8 @@ export interface StageProps {
   hasTarget: boolean;
   targetPlaying: boolean;
   onToggleTarget: () => void;
-  engineError: string | null;
+  /** The sounds couldn't load: Otto says so (ERROR_LINE) and offers a retry. */
+  engineError: boolean;
   /** Audio is unlocked but samples and soundfonts are still arriving. */
   soundsLoading: boolean;
   onRetryAudio: () => void;

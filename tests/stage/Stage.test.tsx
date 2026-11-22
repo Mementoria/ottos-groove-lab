@@ -18,7 +18,7 @@ function makeProps(overrides: Partial<StageProps> = {}): StageProps {
     hasTarget: false,
     targetPlaying: false,
     onToggleTarget: () => {},
-    engineError: null,
+    engineError: false,
     soundsLoading: false,
     onRetryAudio: () => {},
     ...overrides,
@@ -92,7 +92,7 @@ describe('Stage', () => {
   it('shows Otto’s connection message with a working Retry on engine error', async () => {
     const user = userEvent.setup();
     const onRetryAudio = vi.fn();
-    render(<Stage {...makeProps({ engineError: 'boom', onRetryAudio })} />);
+    render(<Stage {...makeProps({ engineError: true, onRetryAudio })} />);
     expect(
       screen.getByText("I can't reach the sound library. Check your connection?"),
     ).toBeInTheDocument();
