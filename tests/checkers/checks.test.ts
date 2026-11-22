@@ -1,7 +1,19 @@
 // @vitest-environment node
 import { buildContext, controlKey, runCheck } from '../../src/checkers/checks';
 import type { Check } from '../../src/checkers/checks';
-import { bank, ftype, grid, layer, mod, notes, osc, program, signal, sound } from '../../src/program/build';
+import {
+  bank,
+  ftype,
+  grid,
+  layer,
+  mod,
+  muted,
+  notes,
+  osc,
+  program,
+  signal,
+  sound,
+} from '../../src/program/build';
 
 async function passes(check: Check, ...args: Parameters<typeof program>): Promise<boolean> {
   const ctx = await buildContext(program(...args), true);
@@ -136,5 +148,25 @@ describe('runCheck', () => {
     // Cycle 0 only covers the first quarter of the slowed sine (about 1100 to 2000).
     expect(await passes({ ...check, cycles: 1, minSpread: 1200 }, 120, sweep)).toBe(false);
     expect(await passes({ ...check, minSpread: 1200 }, 120, sweep)).toBe(true);
+  });
+
+  it('signalSlow passes when the control is driven by a slow enough signal', async () => {
+    const check: Check = { kind: 'signalSlow', control: 'lpf', min: 8 };
+    const slow = layer(notes('c2 eb2'), mod('lpf', signal('sine', 200, 2000, 8)));
+    const slower = layer(notes('c2 eb2'), mod('lpf', signal('tri', 200, 2000, 16)));
+    expect(await passes(check, 120, slow)).toBe(true);
+    expect(await passes(check, 120, kick, slower)).toBe(true);
+  });
+
+  it('signalSlow fails on a fast signal, a plain number, another control or a muted arm', async () => {
+    const check: Check = { kind: 'signalSlow', control: 'lpf', min: 8 };
+    const fast = layer(notes('c2 eb2'), mod('lpf', signal('sine', 200, 2000, 4)));
+    const fixed = layer(notes('c2 eb2'), mod('lpf', 800));
+    const elsewhere = layer(notes('c2 eb2'), mod('lpf', 800), mod('lpq', signal('sine', 1, 20, 8)));
+    const silenced = muted(layer(notes('c2 eb2'), mod('lpf', signal('sine', 200, 2000, 8))));
+    expect(await passes(check, 120, fast)).toBe(false);
+    expect(await passes(check, 120, fixed)).toBe(false);
+    expect(await passes(check, 120, elsewhere)).toBe(false);
+    expect(await passes(check, 120, kick, silenced)).toBe(false);
   });
 });

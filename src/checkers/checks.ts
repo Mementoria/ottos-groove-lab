@@ -24,7 +24,9 @@ export type Check =
       max?: number;
       equals?: string | number;
     }
-  | { kind: 'controlVaries'; control: string; where?: Where; cycles: number; minSpread: number };
+  | { kind: 'controlVaries'; control: string; where?: Where; cycles: number; minSpread: number }
+  /** Reads the program: an unmuted layer drives `control` (a method name) with a signal this slow. */
+  | { kind: 'signalSlow'; control: string; min: number };
 
 export interface CheckContext {
   program: Program;
@@ -106,6 +108,21 @@ function runControlVaries(check: Of<'controlVaries'>, ctx: CheckContext): CheckR
   );
 }
 
+function runSignalSlow(check: Of<'signalSlow'>, ctx: CheckContext): CheckResult {
+  const slows = ctx.program.layers
+    .filter((l) => !l.muted)
+    .flatMap((l) => l.mods)
+    .flatMap((m) =>
+      'arg' in m && m.name === check.control && m.arg.kind === 'signal' ? [m.arg.slow] : [],
+    );
+  if (slows.length === 0) return outcome(false, `no wave plugged into ${check.control}`);
+  const slowest = Math.max(...slows);
+  return outcome(
+    slowest >= check.min,
+    `${check.control} wave over ${String(slowest)} cycles, need ${String(check.min)}`,
+  );
+}
+
 export function runCheck(check: Check, ctx: CheckContext): CheckResult {
   switch (check.kind) {
     case 'manual':
@@ -167,6 +184,8 @@ export function runCheck(check: Check, ctx: CheckContext): CheckResult {
       return runControl(check, ctx);
     case 'controlVaries':
       return runControlVaries(check, ctx);
+    case 'signalSlow':
+      return runSignalSlow(check, ctx);
   }
 }
 
