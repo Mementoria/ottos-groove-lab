@@ -87,7 +87,7 @@ export function LessonView({ engine, lessons, index, onBack, onNext }: LessonVie
         bubbleKey={bubble.key}
         scope={{ analyser, mode: 'scope' }}
         spectrumAvailable={lesson.spectrum}
-        playing={session.playing}
+        playing={session.playing || session.playRequested}
         onPlay={session.play}
         onStop={session.stop}
         onHint={session.requestHint}

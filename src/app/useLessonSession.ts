@@ -10,6 +10,7 @@ import type { Lesson, Step } from '../lessons/types';
 import { highlightBus, type Highlight } from '../otto/highlightBus';
 import { toStrudelCode, type Generated } from '../program/codegen';
 import type { Program } from '../program/types';
+import { createPlayback, type OnSettled, type Playback } from './playback';
 import { loadState, saveState, type SavedState } from './storage';
 import { brokenSourceIds } from './typos';
 
@@ -59,6 +60,8 @@ export interface LessonSessionState {
   /** Set when the learner's latest evaluated code had a typo; kept until a later one evaluates. */
   evalError: EvalErrorInfo | null;
   playing: boolean;
+  /** Play was pressed but sound hasn't started yet (e.g. samples still loading). */
+  playRequested: boolean;
   targetPlaying: boolean;
   loadRequest: LoadRequest | null;
   currentHintText: string | null;
@@ -83,88 +86,6 @@ export interface LessonSessionActions {
 }
 
 export type LessonSession = LessonSessionState & LessonSessionActions;
-
-/* ---------- playback: one evaluation in flight, latest code wins, stop wins ---------- */
-
-interface Playback {
-  play: (code: string) => void;
-  update: (code: string) => void;
-  stop: () => void;
-  /** The learner's intent (true from play until stop), not whether sound is coming out yet. */
-  wantsPlaying: () => boolean;
-}
-
-/**
- * Serialises engine evaluations. Strudel installs a pattern when its evaluation finishes, so two
- * overlapping evaluations could finish out of order and leave the older pattern playing. Here
- * only one is ever in flight; edits that arrive meanwhile collapse into one follow-up with the
- * latest code, and only the result of the latest code is reported.
- */
-function createPlayback(
-  engine: AudioEngine,
-  onSettled: (code: string, info: EvalInfo | null, error: Error | null, played: boolean) => void,
-): Playback {
-  let busy = false;
-  let next: { code: string; play: boolean } | null = null;
-  let wantPlaying = false;
-
-  // Read through functions: `next` changes while `pump` awaits.
-  const take = (): { code: string; play: boolean } | null => {
-    const job = next;
-    next = null;
-    return job;
-  };
-  const queued = (): boolean => next !== null;
-  const playQueued = (): boolean => next?.play === true;
-
-  async function pump(): Promise<void> {
-    busy = true;
-    try {
-      for (let job = take(); job !== null; job = take()) {
-        const couldStart = job.play || engine.isPlaying();
-        let info: EvalInfo | null = null;
-        let evalError: Error | null = null;
-        try {
-          info = job.play ? await engine.play(job.code) : await engine.update(job.code);
-          // Read at once: the engine reports on its latest evaluation, which is this one.
-          evalError = engine.evalError();
-        } catch (error) {
-          console.warn('Evaluation failed.', error);
-        }
-        // The engine marks itself playing (and Strudel starts its clock) after its await, so a
-        // stop pressed while this was in flight has to be applied again now.
-        if (!wantPlaying && couldStart) engine.stop();
-        // Play with nothing to play, or an edit down to silence, ends the intent too.
-        if (wantPlaying && !playQueued() && !engine.isPlaying()) wantPlaying = false;
-        if (!queued()) onSettled(job.code, info, evalError, job.play);
-      }
-    } finally {
-      busy = false;
-    }
-  }
-
-  function kick(): void {
-    if (!busy) void pump();
-  }
-
-  return {
-    play(code) {
-      wantPlaying = true;
-      next = { code, play: true };
-      kick();
-    },
-    update(code) {
-      next = { code, play: next?.play ?? false };
-      kick();
-    },
-    stop() {
-      wantPlaying = false;
-      if (next) next = { ...next, play: false };
-      engine.stop();
-    },
-    wantsPlaying: () => wantPlaying,
-  };
-}
 
 /* ---------- pure helpers ---------- */
 
@@ -292,6 +213,8 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
   /* -- store plumbing -- */
 
   const listeners = new Set<() => void>();
+  /** Replaced on every attach: a detached session's playback is disposed for good. */
+  let playback: Playback = createPlayback(engine, onSettled);
   let snapshot = toSnapshot();
 
   function toSnapshot(): LessonSessionState {
@@ -304,6 +227,7 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
       evalInfo: evaluated?.code === generated.code ? evaluated.info : null,
       evalError: state.typo,
       playing: engine.isPlaying(),
+      playRequested: playback.wantsPlaying() && !engine.isPlaying(),
       targetPlaying: state.targetPlaying,
       loadRequest: state.loadRequest,
       currentHintText: hintText(lesson.steps[runner.stepIndex], runner.hintLevel),
@@ -347,7 +271,7 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
   /** Bumped whenever a pending typo lookup stops being wanted. */
   let typoSeq = 0;
 
-  const playback = createPlayback(engine, (code, info, error, played) => {
+  function onSettled(...[code, info, error, played]: Parameters<OnSettled>): void {
     if (!attached) return;
     // A goal that won't evaluate hands back to the learner rather than claiming to play.
     if (state.targetPlaying && code === targetCode && info === null) returnToLearner();
@@ -355,7 +279,7 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
     noteTypo(code, error, played);
     // `playing` may have just turned true, which a check can depend on.
     if (!state.targetPlaying) check();
-  });
+  }
 
   const currentStep = (): Step | undefined => lesson.steps[state.runner.stepIndex];
 
@@ -596,6 +520,7 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
     getSnapshot: () => snapshot,
     attach() {
       attached = true;
+      playback = createPlayback(engine, onSettled);
       tickTimer = setInterval(() => {
         dispatch({ type: 'tick', now: now() });
       }, TICK_MS);
@@ -604,7 +529,7 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
         clearInterval(tickTimer);
         clearTimeout(debounceTimer);
         clearTimeout(cheerTimer);
-        playback.stop();
+        playback.dispose();
         // StrictMode re-attaches; the next run must evaluate again.
         sentCode = null;
         checkedKey = null;

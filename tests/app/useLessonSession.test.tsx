@@ -297,6 +297,44 @@ describe('useLessonSession: last edit wins (Review Focus 4)', () => {
     expect(hook.result.current.playing).toBe(false);
   });
 
+  it('reports a pending play while sounds load, so the transport can offer Stop', async () => {
+    const engine = fakeEngine();
+    const playDone = deferred<null>();
+    engine.setPlayDelay(playDone);
+    const { hook } = setup({ engine });
+
+    act(() => {
+      hook.result.current.play();
+    });
+    expect(hook.result.current.playing).toBe(false);
+    expect(hook.result.current.playRequested).toBe(true);
+
+    act(() => {
+      hook.result.current.stop();
+    });
+    expect(hook.result.current.playRequested).toBe(false);
+    playDone.resolve(null);
+    await flush();
+    expect(hook.result.current.playRequested).toBe(false);
+    expect(engine.isPlaying()).toBe(false);
+  });
+
+  it('clears the pending play once sound starts', async () => {
+    const engine = fakeEngine();
+    const playDone = deferred<null>();
+    engine.setPlayDelay(playDone);
+    const { hook } = setup({ engine });
+
+    act(() => {
+      hook.result.current.play();
+    });
+    playDone.resolve(null);
+    await flush();
+
+    expect(hook.result.current.playing).toBe(true);
+    expect(hook.result.current.playRequested).toBe(false);
+  });
+
   it('reports playing once play resolves, and only passes evalInfo for the current code', async () => {
     const engine = fakeEngine();
     const info: EvalInfo = { pattern: {} as EvalInfo['pattern'], miniLocations: [[0, 2]] };
