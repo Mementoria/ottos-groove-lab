@@ -51,7 +51,7 @@ describe('presentBubble', () => {
   it('interrupts with a hint offer under its own key', () => {
     const b = presentBubble(
       source({ runner: { ...initRunner(0), offer: true } }),
-      step('open', 'playing'),
+      step('puzzle', 'playing'),
       nav,
     );
     expect(b.lines).toEqual([OFFER_LINE]);

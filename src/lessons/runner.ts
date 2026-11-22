@@ -57,7 +57,8 @@ export function reduce(lesson: Lesson, s: RunnerState, e: RunnerEvent): RunnerSt
     case 'manualNext':
       return allowsManualNext(step) ? advance(lesson, s, e.now) : s;
     case 'tick': {
-      if (s.hintLevel >= 3 || s.offer) return s;
+      // Offers are for being stuck on a check; an open step is the learner's to finish (💡 stays).
+      if (s.hintLevel >= 3 || s.offer || allowsManualNext(step)) return s;
       const due = e.now - s.idleSince >= IDLE_MS || s.failedChecks >= FAILS_BEFORE_OFFER;
       return due ? { ...s, offer: true } : s;
     }

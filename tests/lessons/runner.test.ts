@@ -132,6 +132,22 @@ describe('tick', () => {
     expect(reduce(lesson, fewer, { type: 'tick', now: T0 + 1 }).offer).toBe(false);
   });
 
+  it('never offers on a manual step: it is finished by the learner, not by a check', () => {
+    const s = at({ stepIndex: 1, failedChecks: FAILS_BEFORE_OFFER });
+    expect(reduce(lesson, s, { type: 'tick', now: T0 + IDLE_MS * 10 })).toBe(s);
+  });
+
+  it('never offers on an open step, even one with an automatic check', () => {
+    const open: Lesson = { ...lesson, steps: [{ ...step('o', 'playing'), type: 'open' }] };
+    const s = at({ failedChecks: FAILS_BEFORE_OFFER });
+    expect(reduce(open, s, { type: 'tick', now: T0 + IDLE_MS * 10 })).toBe(s);
+  });
+
+  it('still climbs the ladder on an open step when the learner asks', () => {
+    const open: Lesson = { ...lesson, steps: [{ ...step('o', 'playing'), type: 'open' }] };
+    expect(reduce(open, at({}), { type: 'hint', now: T0 + 1 }).hintLevel).toBe(1);
+  });
+
   it('never offers once every rung has been shown', () => {
     const s = at({ hintLevel: 3, failedChecks: 99 });
     expect(reduce(lesson, s, { type: 'tick', now: T0 + IDLE_MS * 10 }).offer).toBe(false);
