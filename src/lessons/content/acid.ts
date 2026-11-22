@@ -127,12 +127,18 @@ const acid: Lesson = {
           { kind: 'control', control: 'ftype', where: SAW, equals: 'ladder' },
           { kind: 'control', control: 'lpq', where: SAW, min: 10 },
           { kind: 'control', control: 'lpenv', where: SAW, min: 2 },
-          { kind: 'controlVaries', control: 'lpf', where: SAW, cycles: 4, minSpread: 500 },
+          {
+            kind: 'any',
+            checks: [
+              { kind: 'controlVaries', control: 'lpf', where: SAW, cycles: 4, minSpread: 500 },
+              { kind: 'signalRange', control: 'lpf', minSpread: 500 },
+            ],
+          },
         ],
       },
       hints: [
         {
-          say: 'Start with a **filter cutoff**: resonance and the envelope only work once there is one. Then give the sweep room to move, at least 500 Hz between its lowest and highest.',
+          say: 'Start with a **filter cutoff**: resonance and the envelope only work once there is one. Then let the cutoff travel: plug a wave into it and give it a wide range, at least 500 Hz from low to high.',
         },
         {
           say: 'Under the bass: **filter cutoff** with a **sine wave** from 200 to 1400 over 8 cycles, **resonance** 16, **filter type** ladder, and **filter envelope** 3.5.',

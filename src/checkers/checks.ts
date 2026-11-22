@@ -26,7 +26,9 @@ export type Check =
     }
   | { kind: 'controlVaries'; control: string; where?: Where; cycles: number; minSpread: number }
   /** Reads the program: an unmuted layer drives `control` (a method name) with a signal this slow. */
-  | { kind: 'signalSlow'; control: string; min: number };
+  | { kind: 'signalSlow'; control: string; min: number }
+  /** Reads the program: an unmuted layer drives `control` (a method name) with a signal this wide. */
+  | { kind: 'signalRange'; control: string; minSpread: number };
 
 export interface CheckContext {
   program: Program;
@@ -123,6 +125,23 @@ function runSignalSlow(check: Of<'signalSlow'>, ctx: CheckContext): CheckResult 
   );
 }
 
+function runSignalRange(check: Of<'signalRange'>, ctx: CheckContext): CheckResult {
+  const spreads = ctx.program.layers
+    .filter((l) => !l.muted)
+    .flatMap((l) => l.mods)
+    .flatMap((m) =>
+      'arg' in m && m.name === check.control && m.arg.kind === 'signal'
+        ? [Math.abs(m.arg.max - m.arg.min)]
+        : [],
+    );
+  if (spreads.length === 0) return outcome(false, `no wave plugged into ${check.control}`);
+  const widest = Math.max(...spreads);
+  return outcome(
+    widest >= check.minSpread,
+    `${check.control} wave spans ${String(widest)}, need ${String(check.minSpread)}`,
+  );
+}
+
 export function runCheck(check: Check, ctx: CheckContext): CheckResult {
   switch (check.kind) {
     case 'manual':
@@ -186,6 +205,8 @@ export function runCheck(check: Check, ctx: CheckContext): CheckResult {
       return runControlVaries(check, ctx);
     case 'signalSlow':
       return runSignalSlow(check, ctx);
+    case 'signalRange':
+      return runSignalRange(check, ctx);
   }
 }
 

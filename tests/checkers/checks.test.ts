@@ -169,4 +169,28 @@ describe('runCheck', () => {
     expect(await passes(check, 120, elsewhere)).toBe(false);
     expect(await passes(check, 120, kick, silenced)).toBe(false);
   });
+
+  it('signalRange passes when the control is driven by a wide enough signal', async () => {
+    const check: Check = { kind: 'signalRange', control: 'lpf', minSpread: 500 };
+    const wide = layer(notes('c2 eb2'), mod('lpf', signal('sine', 200, 1000, 8)));
+    const reversed = layer(notes('c2 eb2'), mod('lpf', signal('saw', 1000, 200, 4)));
+    expect(await passes(check, 120, wide)).toBe(true);
+    expect(await passes(check, 120, kick, reversed)).toBe(true);
+  });
+
+  it('signalRange fails on a narrow signal, a plain number, another control or a muted arm', async () => {
+    const check: Check = { kind: 'signalRange', control: 'lpf', minSpread: 500 };
+    const narrow = layer(notes('c2 eb2'), mod('lpf', signal('sine', 200, 600, 8)));
+    const fixed = layer(notes('c2 eb2'), mod('lpf', 800));
+    const elsewhere = layer(
+      notes('c2 eb2'),
+      mod('lpf', 800),
+      mod('lpq', signal('sine', 0, 1000, 8)),
+    );
+    const silenced = muted(layer(notes('c2 eb2'), mod('lpf', signal('sine', 200, 1000, 8))));
+    expect(await passes(check, 120, narrow)).toBe(false);
+    expect(await passes(check, 120, fixed)).toBe(false);
+    expect(await passes(check, 120, elsewhere)).toBe(false);
+    expect(await passes(check, 120, kick, silenced)).toBe(false);
+  });
 });
