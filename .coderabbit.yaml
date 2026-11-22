@@ -1,0 +1,27 @@
+# CodeRabbit configuration
+# https://docs.coderabbit.ai/reference/configuration
+
+language: en-US
+reviews:
+  profile: chill
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - '!package-lock.json'
+    - '!LICENSE'
+  path_instructions:
+    - path: 'src/**/*.{ts,tsx}'
+      instructions: >-
+        TypeScript strict. `any` is not allowed anywhere. Strudel packages have
+        no types; their surface is declared narrowly in src/types/strudel.d.ts.
+    - path: 'tests/**/*.{ts,tsx}'
+      instructions: >-
+        Tests are held to production quality: same lint, style and typing rules
+        as src, including no `any`.
+    - path: 'src/lessons/content/**'
+      instructions: >-
+        Lesson content taught by Otto the octopus. Check that musical and
+        Strudel/superdough claims are accurate, that each step's check accepts
+        equivalent answers (it tests what the music does, not the exact code),
+        and that hints actually lead to the answer.
