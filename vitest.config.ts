@@ -8,5 +8,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ['tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}'],
+    // @kabelsalat/web only declares a CJS "main" next to an ESM "module"; inlining makes
+    // Vite resolve the ESM build so @strudel/core's named imports work under Node.
+    server: { deps: { inline: [/@strudel\//, /@kabelsalat\//] } },
   },
 });
