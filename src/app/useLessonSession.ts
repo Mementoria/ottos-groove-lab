@@ -83,6 +83,8 @@ export interface LessonSessionActions {
   acceptOffer: () => void;
   dismissOffer: () => void;
   manualNext: () => void;
+  /** The bubble reports which line of the speech with this key it is showing. */
+  noteSpeechLine: (speechKey: string, index: number) => void;
 }
 
 export type LessonSession = LessonSessionState & LessonSessionActions;
@@ -192,6 +194,18 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
       : null;
 
   let speechCount = 0;
+  /** Which line of the current speech the bubble is showing, as it last reported. */
+  let shownLine = { key: '', index: 0 };
+  /** What Otto was saying (from the line on show) when he offered a hint; restored on "Not yet". */
+  let offeredFrom: string[] | null = null;
+
+  /** The current speech from the line the bubble is showing (its last line if unreported). */
+  function speechFromShownLine(): string[] {
+    const { key, lines } = state.speech;
+    const index = shownLine.key === key ? shownLine.index : lines.length - 1;
+    return lines.slice(Math.min(Math.max(0, index), Math.max(0, lines.length - 1)));
+  }
+
   function speech(lines: string[]): Speech {
     speechCount += 1;
     return { key: `${lesson.id}:${String(state.runner.stepIndex)}:${String(speechCount)}`, lines };
@@ -449,14 +463,18 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
     const next = reduce(lesson, prev, e);
     if (next === prev) return;
     state = { ...state, runner: next };
+    if (next.offer && !prev.offer) offeredFrom = speechFromShownLine();
 
     if (next.stepIndex !== prev.stepIndex || next.completed !== prev.completed) {
       finishStep(prev, next, checkedProgram);
     } else if (e.type === 'hint') {
       presentHint(next.hintLevel);
     } else if (e.type === 'dismissOffer' && prev.offer) {
-      state = { ...state, speech: speech([DISMISS_LINE]) };
+      // Then back to what Otto was saying when he offered, from the line the bubble was showing.
+      const resume = offeredFrom ?? speechFromShownLine();
+      state = { ...state, speech: speech([DISMISS_LINE, ...resume]) };
     }
+    if (!next.offer) offeredFrom = null;
     publish();
   }
 
@@ -554,6 +572,9 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
     },
     acceptOffer() {
       dispatch({ type: 'hint', now: now() });
+    },
+    noteSpeechLine(speechKey, index) {
+      shownLine = { key: speechKey, index };
     },
     dismissOffer() {
       dispatch({ type: 'dismissOffer', now: now() });

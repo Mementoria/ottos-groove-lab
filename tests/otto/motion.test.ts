@@ -51,3 +51,22 @@ describe('bobOffset', () => {
     }
   });
 });
+
+describe('tentaclePath rootLift', () => {
+  const start = (d: string): [number, number] => {
+    const m = /^M(-?[\d.]+) (-?[\d.]+)/.exec(d);
+    if (!m?.[1] || !m[2]) throw new Error(`no start point in ${d}`);
+    return [Number(m[1]), Number(m[2])];
+  };
+  const end = (d: string): string => d.split(' ').slice(-2).join(' ');
+
+  it('raises the root with the body and leaves the tip planted', () => {
+    for (let i = 0; i < 8; i += 1) {
+      const rest = tentaclePath(i, 0.25, 0.5, 0, 0);
+      const lifted = tentaclePath(i, 0.25, 0.5, 0, 6);
+      expect(start(lifted)[0]).toBe(start(rest)[0]);
+      expect(start(lifted)[1]).toBeCloseTo(start(rest)[1] - 6, 5);
+      expect(end(lifted)).toBe(end(rest));
+    }
+  });
+});

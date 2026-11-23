@@ -80,6 +80,9 @@ export function LessonView({ engine, lessons, index, onBack, onNext }: LessonVie
         bubble={{
           lines: bubble.lines,
           actions: bubble.actions,
+          onLineChange: (index) => {
+            session.noteSpeechLine(bubble.key, index);
+          },
           onDone: () => {
             setDoneKey(bubble.key);
           },

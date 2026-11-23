@@ -23,6 +23,7 @@ function prefersReducedMotion(): boolean {
 export function Otto({ beatPhase, level, mood }: OttoProps) {
   const tentacleRefs = useRef<(SVGPathElement | null)[]>([]);
   const bodyRef = useRef<SVGGElement>(null);
+  const figureRef = useRef<SVGGElement>(null);
   const mouthRef = useRef<SVGPathElement>(null);
   const moodRef = useRef(mood);
   const cheerStart = useRef<number | null>(null);
@@ -56,12 +57,15 @@ export function Otto({ beatPhase, level, mood }: OttoProps) {
         }
       }
 
+      const bob = still ? 0 : bobOffset(phase, lvl) * (m === 'talking' ? 1 : 0.6);
       for (let i = 0; i < TENTACLE_COUNT; i += 1) {
         // Reduced motion or asleep: hold a near-still pose (minimum amplitude, no phase travel).
-        tentacleRefs.current[i]?.setAttribute('d', tentaclePath(i, phase, lvl, raise));
+        // The roots rise with the bobbing body so the arms stay attached.
+        tentacleRefs.current[i]?.setAttribute('d', tentaclePath(i, phase, lvl, raise, bob));
       }
-      const bob = still ? 0 : bobOffset(phase, lvl) * (m === 'talking' ? 1 : 0.6);
-      bodyRef.current?.setAttribute('transform', `translate(0 ${(-bob - jump).toFixed(2)})`);
+      bodyRef.current?.setAttribute('transform', `translate(0 ${(-bob).toFixed(2)})`);
+      // A cheer jump lifts all of him, arms included.
+      figureRef.current?.setAttribute('transform', `translate(0 ${(-jump).toFixed(2)})`);
       if (mouthRef.current) {
         const open = m === 'talking' && !reduced && Math.sin(now / 110) > 0;
         mouthRef.current.setAttribute('d', open ? MOUTH_OPEN : MOUTH_CLOSED);
@@ -83,49 +87,51 @@ export function Otto({ beatPhase, level, mood }: OttoProps) {
       height="130"
       viewBox="0 0 130 130"
     >
-      <g stroke="#b06ad8" strokeWidth="7" strokeLinecap="round" fill="none">
-        {Array.from({ length: TENTACLE_COUNT }, (_, i) => (
+      <g ref={figureRef} className="otto-figure">
+        <g stroke="#b06ad8" strokeWidth="7" strokeLinecap="round" fill="none">
+          {Array.from({ length: TENTACLE_COUNT }, (_, i) => (
+            <path
+              key={i}
+              ref={(el) => {
+                tentacleRefs.current[i] = el;
+              }}
+              d={tentaclePath(i, 0, 0)}
+            />
+          ))}
+        </g>
+        <g ref={bodyRef} className="otto-body">
+          <ellipse cx="65" cy="52" rx="34" ry="32" fill="#c784ee" />
+          {mood === 'asleep' ? (
+            <g
+              className="otto-eyes-closed"
+              stroke="#5a2a78"
+              strokeWidth="3"
+              strokeLinecap="round"
+              fill="none"
+            >
+              <path d="M46 51 Q53 56 60 51" />
+              <path d="M70 51 Q77 56 84 51" />
+            </g>
+          ) : (
+            <g className="otto-eyes-open">
+              <circle cx="53" cy="50" r="8" fill="#fff" />
+              <circle cx="77" cy="50" r="8" fill="#fff" />
+              <circle cx="55" cy="51" r="4" fill="#222" />
+              <circle cx="79" cy="51" r="4" fill="#222" />
+            </g>
+          )}
           <path
-            key={i}
-            ref={(el) => {
-              tentacleRefs.current[i] = el;
-            }}
-            d={tentaclePath(i, 0, 0)}
-          />
-        ))}
-      </g>
-      <g ref={bodyRef}>
-        <ellipse cx="65" cy="52" rx="34" ry="32" fill="#c784ee" />
-        {mood === 'asleep' ? (
-          <g
-            className="otto-eyes-closed"
+            ref={mouthRef}
+            d={MOUTH_CLOSED}
             stroke="#5a2a78"
             strokeWidth="3"
-            strokeLinecap="round"
             fill="none"
-          >
-            <path d="M46 51 Q53 56 60 51" />
-            <path d="M70 51 Q77 56 84 51" />
-          </g>
-        ) : (
-          <g className="otto-eyes-open">
-            <circle cx="53" cy="50" r="8" fill="#fff" />
-            <circle cx="77" cy="50" r="8" fill="#fff" />
-            <circle cx="55" cy="51" r="4" fill="#222" />
-            <circle cx="79" cy="51" r="4" fill="#222" />
-          </g>
-        )}
-        <path
-          ref={mouthRef}
-          d={MOUTH_CLOSED}
-          stroke="#5a2a78"
-          strokeWidth="3"
-          fill="none"
-          strokeLinecap="round"
-        />
-        <rect x="36" y="16" width="58" height="8" rx="4" fill="#333" />
-        <circle cx="36" cy="30" r="8" fill="#333" />
-        <circle cx="94" cy="30" r="8" fill="#333" />
+            strokeLinecap="round"
+          />
+          <rect x="36" y="16" width="58" height="8" rx="4" fill="#333" />
+          <circle cx="36" cy="30" r="8" fill="#333" />
+          <circle cx="94" cy="30" r="8" fill="#333" />
+        </g>
       </g>
     </svg>
   );
