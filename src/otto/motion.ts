@@ -32,9 +32,16 @@ function fmt(n: number): string {
 /**
  * SVG path `d` for tentacle `index` (0..7). `beatPhase` is in cycles (fractional part is used),
  * `level` is 0..1 loudness. Amplitude scales with 0.3 + 0.7 * level; each tentacle is offset by
- * index * PI/4. `raise` (0..1) lifts the tips, used for cheering.
+ * index * PI/4. `raise` (0..1) lifts the tips, used for cheering. `rootLift` (px) raises the root
+ * with the body as it bobs, leaving the tip planted, so the arm stretches instead of detaching.
  */
-export function tentaclePath(index: number, beatPhase: number, level: number, raise = 0): string {
+export function tentaclePath(
+  index: number,
+  beatPhase: number,
+  level: number,
+  raise = 0,
+  rootLift = 0,
+): string {
   const shape = TENTACLES[((index % 8) + 8) % 8] ?? TENTACLES[0];
   const [sx, sy, cx, cy, ex, ey] = shape ?? [0, 0, 0, 0, 0, 0];
   const amplitude = SWAY_PX * (0.3 + 0.7 * Math.min(1, Math.max(0, level)));
@@ -42,10 +49,10 @@ export function tentaclePath(index: number, beatPhase: number, level: number, ra
   const sway = Math.sin(angle) * amplitude;
   const lift = RAISE_PX * Math.min(1, Math.max(0, raise));
   const ctlX = cx + sway * 0.5;
-  const ctlY = cy - lift * 0.6;
+  const ctlY = cy - lift * 0.6 - rootLift * 0.5;
   const endX = ex + sway;
   const endY = ey - lift + Math.cos(angle) * amplitude * 0.3;
-  return `M${fmt(sx)} ${fmt(sy)} Q${fmt(ctlX)} ${fmt(ctlY)} ${fmt(endX)} ${fmt(endY)}`;
+  return `M${fmt(sx)} ${fmt(sy - rootLift)} Q${fmt(ctlX)} ${fmt(ctlY)} ${fmt(endX)} ${fmt(endY)}`;
 }
 
 /** Vertical body bob in px, 0..8; a pulse each beat that grows with level. */
