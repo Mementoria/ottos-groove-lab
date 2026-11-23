@@ -86,4 +86,13 @@ describe('Bubble', () => {
     expect(screen.getByText('B')).toBeInTheDocument();
     expect(onDone).toHaveBeenCalledTimes(1);
   });
+
+  it('reports which line it is showing', async () => {
+    const user = userEvent.setup();
+    const onLineChange = vi.fn();
+    render(<Bubble lines={['A', 'B']} onDone={() => {}} onLineChange={onLineChange} />);
+    expect(onLineChange).toHaveBeenLastCalledWith(0);
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(onLineChange).toHaveBeenLastCalledWith(1);
+  });
 });

@@ -727,6 +727,43 @@ describe('useLessonSession: steps, hints and success', () => {
     expect(after[1]).toBe(before.at(-1));
   });
 
+  it('declining resumes from the line the bubble was showing when Otto offered', async () => {
+    const chatty: Step = { ...TWO_ARMS, say: ['One.', 'Two.', 'Three.'] };
+    const { hook } = setup({ course: fixtureWith([chatty, JAM]) });
+    // The learner had read up to the second line.
+    act(() => {
+      hook.result.current.noteSpeechLine(hook.result.current.speech.key, 1);
+    });
+    clock = T0 + IDLE_MS;
+    await advance(1_000);
+    expect(hook.result.current.runner.offer).toBe(true);
+
+    act(() => {
+      hook.result.current.dismissOffer();
+    });
+    expect(hook.result.current.speech.lines.slice(1)).toEqual(['Two.', 'Three.']);
+  });
+
+  it('declining restores the speech from before the offer, even if Otto spoke meanwhile', async () => {
+    const { hook } = setup();
+    const before = hook.result.current.speech.lines;
+    clock = T0 + IDLE_MS;
+    await advance(1_000);
+    expect(hook.result.current.runner.offer).toBe(true);
+    act(() => {
+      hook.result.current.onBlocksChange(change(program(null)));
+    });
+    act(() => {
+      hook.result.current.play();
+    });
+    expect(hook.result.current.speech.lines).not.toEqual(before);
+
+    act(() => {
+      hook.result.current.dismissOffer();
+    });
+    expect(hook.result.current.speech.lines.slice(1)).toEqual(before.slice(-1));
+  });
+
   it('offers a hint after idling, and acts on the answer', async () => {
     const { hook } = setup();
     clock = T0 + IDLE_MS;

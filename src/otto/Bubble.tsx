@@ -4,6 +4,8 @@ export interface BubbleProps {
   lines: string[];
   onDone: () => void;
   actions?: { label: string; onClick: () => void }[];
+  /** Called with the index of the line on show, whenever it changes. */
+  onLineChange?: (index: number) => void;
 }
 
 /** Turns `**x**` into <code>x</code>; everything else stays plain text (never HTML). */
@@ -11,7 +13,7 @@ function renderLine(line: string): ReactNode[] {
   return line.split('**').map((part, i) => (i % 2 === 1 ? <code key={i}>{part}</code> : part));
 }
 
-export function Bubble({ lines, onDone, actions }: BubbleProps) {
+export function Bubble({ lines, onDone, actions, onLineChange }: BubbleProps) {
   const [index, setIndex] = useState(0);
   const linesKey = lines.join('\u0000');
   const [prevKey, setPrevKey] = useState(linesKey);
@@ -28,6 +30,15 @@ export function Bubble({ lines, onDone, actions }: BubbleProps) {
 
   const last = Math.max(0, lines.length - 1);
   const atEnd = index >= last;
+  const shown = Math.min(index, last);
+
+  const onLineChangeRef = useRef(onLineChange);
+  useEffect(() => {
+    onLineChangeRef.current = onLineChange;
+  }, [onLineChange]);
+  useEffect(() => {
+    onLineChangeRef.current?.(shown);
+  }, [shown, linesKey]);
 
   useEffect(() => {
     // Guarded per content so StrictMode's double effect run and equal-content re-renders fire once.
