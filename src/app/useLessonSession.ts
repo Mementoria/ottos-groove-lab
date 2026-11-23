@@ -455,7 +455,8 @@ export function createLessonSession(lessonIndex: number, deps: SessionDeps): Ses
     } else if (e.type === 'hint') {
       presentHint(next.hintLevel);
     } else if (e.type === 'dismissOffer' && prev.offer) {
-      state = { ...state, speech: speech([DISMISS_LINE]) };
+      // Then back to what Otto was saying when he offered: the line the bubble was showing.
+      state = { ...state, speech: speech([DISMISS_LINE, ...state.speech.lines.slice(-1)]) };
     }
     publish();
   }

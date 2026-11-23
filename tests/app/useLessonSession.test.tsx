@@ -712,6 +712,21 @@ describe('useLessonSession: steps, hints and success', () => {
     await advance(100);
   });
 
+  it('declining a hint brings back what Otto was saying', async () => {
+    const { hook } = setup();
+    const before = hook.result.current.speech.lines;
+    clock = T0 + IDLE_MS;
+    await advance(1_000);
+    expect(hook.result.current.runner.offer).toBe(true);
+
+    act(() => {
+      hook.result.current.dismissOffer();
+    });
+    const after = hook.result.current.speech.lines;
+    expect(after).toHaveLength(2);
+    expect(after[1]).toBe(before.at(-1));
+  });
+
   it('offers a hint after idling, and acts on the answer', async () => {
     const { hook } = setup();
     clock = T0 + IDLE_MS;
